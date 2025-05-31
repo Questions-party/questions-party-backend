@@ -1,38 +1,80 @@
-const createError = require('http-errors');
+require('dotenv').config();
 const express = require('express');
-const path = require('path');
-const cookieParser = require('cookie-parser');
-const logger = require('morgan');
+const cors = require('cors');
+const helmet = require('helmet');
+const morgan = require('morgan');
+const connectDB = require('./config/database');
+const errorHandler = require('./src/middleware/errorHandler');
+const { apiLimiter, authLimiter, aiLimiter } = require('./src/middleware/rateLimiter');
+const config = require('./config/config');
 
-const indexRouter = require('./routes/index');
-const usersRouter = require('./routes/users');
+// Connect to database
+connectDB();
 
 const app = express();
 
-app.use(logger('dev'));
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
-app.use(cookieParser());
+// Security middleware
+app.use(helmet());
 
-app.use('/', indexRouter);
-app.use('/users', usersRouter);
+// CORS configuration
+app.use(cors({
+  origin: config.frontendUrl,
+  credentials: true
+}));
 
-// catch 404 and forward to error handler
-app.use(function(req, res, next) {
-  next(createError(404));
+// Logging middleware
+app.use(morgan('combined'));
+
+// Body parsing middleware
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Rate limiting middleware
+app.use('/api/', apiLimiter);
+
+// Import routes
+const authRoutes = require('./src/routes/auth');
+const wordRoutes = require('./src/routes/words');
+const generationRoutes = require('./src/routes/generations');
+
+// Mount routes with specific rate limiters
+app.use('/api/auth', authLimiter, authRoutes);
+app.use('/api/words', wordRoutes);
+app.use('/api/generate', aiLimiter, generationRoutes);
+app.use('/api/generations', generationRoutes);
+
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: 'Server is running',
+    timestamp: new Date().toISOString()
+  });
 });
 
-// error handler
-app.use(function(err, req, res, next) {
-  // return error as JSON
-  res.status(err.status || 500);
+// Welcome route
+app.get('/', (req, res) => {
   res.json({
-    error: {
-      message: err.message,
-      status: err.status || 500,
-      ...(req.app.get('env') === 'development' && { stack: err.stack })
-    }
+    message: 'Welcome to English Learning Website API',
+    version: '1.0.0',
+    documentation: '/api/health'
   });
+});
+
+// Catch 404 and forward to error handler
+app.use('*', (req, res, next) => {
+  const error = new Error(`Route ${req.originalUrl} not found`);
+  error.statusCode = 404;
+  next(error);
+});
+
+// Error handling middleware (must be last)
+app.use(errorHandler);
+
+const PORT = config.port;
+
+app.listen(PORT, () => {
+  console.log(`Server running in ${config.nodeEnv} mode on port ${PORT}`);
 });
 
 module.exports = app;
