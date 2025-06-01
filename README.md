@@ -6,8 +6,10 @@ A Node.js/Express backend API for an interactive English learning platform where
 
 - **User Authentication**: JWT-based authentication with registration and login
 - **Word Management**: CRUD operations for user's word collections
-- **AI Sentence Generation**: OpenAI integration for generating sentences using user's words
-- **Community Features**: Public feed of generated sentences with like system
+- **AI Sentence Generation**: SiliconFlow/Qwen integration for generating sentences using user's words
+- **AI Configuration Management**: Flexible, configuration-driven AI provider support
+- **Community Features**: Public feed of generated sentences with like system (no auth required for viewing)
+- **Public Access**: Anonymous users can view public content without authentication
 - **Rate Limiting**: Protection against abuse with configurable rate limits
 - **Data Validation**: Comprehensive input validation using Joi
 - **Error Handling**: Centralized error handling with detailed responses
@@ -19,7 +21,8 @@ A Node.js/Express backend API for an interactive English learning platform where
 - **MongoDB** - Primary database
 - **Mongoose** - MongoDB object modeling
 - **JWT** - Authentication tokens
-- **OpenAI API** - AI sentence generation
+- **SiliconFlow API** - Primary AI sentence generation (Qwen/QwQ-32B model)
+- **OpenAI API** - Optional/backup AI provider
 - **Joi** - Data validation
 - **bcryptjs** - Password hashing
 
@@ -38,7 +41,7 @@ npm install
 
 3. Create environment file:
 ```bash
-cp .env.example .env
+cp env.example .env
 ```
 
 4. Configure environment variables in `.env`:
@@ -49,7 +52,12 @@ MONGODB_URI=mongodb://localhost:27017/english-learning
 # JWT
 JWT_SECRET=your_super_secret_jwt_key_here
 
-# AI Service
+# AI Service - SiliconFlow (Primary)
+SILICONFLOW_API_KEY=your_siliconflow_api_key_here
+SILICONFLOW_API_URL=https://api.siliconflow.cn/v1/chat/completions
+SILICONFLOW_MODEL=Qwen/QwQ-32B
+
+# AI Service - OpenAI (Optional/Backup)
 OPENAI_API_KEY=your_openai_api_key_here
 
 # Server
@@ -58,6 +66,9 @@ NODE_ENV=development
 
 # CORS
 FRONTEND_URL=http://localhost:3000
+
+# Rate Limiting (Optional)
+RATE_LIMIT_MAX_PUBLIC=200
 ```
 
 5. Start the server:
@@ -79,24 +90,42 @@ npm start
 - `PUT /api/auth/preferences` - Update user preferences
 
 ### Words Management
-- `GET /api/words` - Get user's words (with pagination, search, sorting)
-- `POST /api/words` - Add new word
-- `PUT /api/words/:id` - Update word
-- `DELETE /api/words/:id` - Delete word
-- `GET /api/words/random` - Get random words
-- `GET /api/words/stats` - Get word statistics
+- `GET /api/words` - Get user's words (with pagination, search, sorting) **[Auth Required]**
+- `POST /api/words` - Add new word **[Auth Required]**
+- `PUT /api/words/:id` - Update word **[Auth Required]**
+- `DELETE /api/words/:id` - Delete word **[Auth Required]**
+- `GET /api/words/random` - Get random words **[Auth Required]**
+- `GET /api/words/stats` - Get word statistics **[Auth Required]**
+
+### AI Configuration Management
+- `GET /api/ai-configs` - Get user's AI configurations **[Auth Required]**
+- `POST /api/ai-configs` - Create AI configuration **[Auth Required]**
+- `GET /api/ai-configs/:id` - Get single AI configuration **[Auth Required]**
+- `PUT /api/ai-configs/:id` - Update AI configuration **[Auth Required]**
+- `DELETE /api/ai-configs/:id` - Delete AI configuration **[Auth Required]**
+- `POST /api/ai-configs/:id/test` - Test AI configuration **[Auth Required]**
+- `POST /api/ai-configs/default` - Create default SiliconFlow config **[Auth Required]**
 
 ### Sentence Generation
-- `POST /api/generate` - Generate sentence with AI
-- `GET /api/generations` - Get user's generations
-- `GET /api/generations/public` - Get public generations feed
-- `GET /api/generations/:id` - Get single generation
-- `POST /api/generations/:id/like` - Toggle like on generation
-- `PUT /api/generations/:id/privacy` - Update generation privacy
-- `DELETE /api/generations/:id` - Delete generation
+- `POST /api/generate` - Generate sentence with AI **[Auth Required]**
+- `GET /api/generations` - Get user's generations **[Auth Required]**
+- `GET /api/generations/public` - Get public generations feed **[Public Access]**
+- `GET /api/generations/:id` - Get single generation **[Public for public content]**
+- `POST /api/generations/:id/like` - Toggle like on generation **[Auth Required]**
+- `PUT /api/generations/:id/privacy` - Update generation privacy **[Auth Required]**
+- `DELETE /api/generations/:id` - Delete generation **[Auth Required]**
 
 ### Health Check
-- `GET /api/health` - Server health status
+- `GET /api/health` - Server health status **[Public Access]**
+
+## Public Access Features
+
+The API supports public access for viewing content without authentication:
+
+- **Public Generations Feed**: Anyone can view public generations at `/api/generations/public`
+- **Individual Public Generations**: Public generations can be viewed by anyone
+- **Higher Rate Limits**: Public endpoints have higher rate limits (200 vs 100 requests per 15 minutes)
+- **Like Functionality**: Requires authentication - anonymous users can view but not like content
 
 ## Database Schema
 
@@ -133,17 +162,47 @@ npm start
 ```javascript
 {
   userId: ObjectId, // reference to Users
+  configId: ObjectId, // reference to AIConfig (optional)
   words: [String], // array of words used
   sentence: String, // AI generated sentence
   explanation: String, // syntax explanation
+  thinkingText: String, // AI reasoning (from QwQ model)
   isPublic: Boolean, // default true
   likes: [{
     userId: ObjectId,
     createdAt: Date
   }],
   likeCount: Number, // denormalized
-  aiModel: String, // AI model used
+  aiModel: String, // AI model used (default: Qwen/QwQ-32B)
   promptVersion: String, // prompt version
+  createdAt: Date,
+  updatedAt: Date
+}
+```
+
+### AI Configurations Collection
+```javascript
+{
+  userId: ObjectId, // reference to Users
+  name: String, // configuration name
+  apiUrl: String, // AI API endpoint
+  apiKey: String, // encrypted API key
+  apiKeyPlacement: String, // 'header' | 'body' | 'custom_header'
+  model: String, // AI model name
+  requestTemplate: Object, // dynamic request template
+  responseTemplate: Object, // response structure example
+  // Path configurations for dynamic parsing
+  requestMessageGroupPath: String,
+  requestRolePathFromGroup: String,
+  requestTextPathFromGroup: String,
+  responseTextPath: String,
+  responseThinkingTextPath: String,
+  // Role mappings
+  requestUserRoleField: String,
+  requestAssistantField: String,
+  headers: Map, // custom headers
+  isAvailable: Boolean, // configuration status
+  lastUsedTime: Date,
   createdAt: Date,
   updatedAt: Date
 }
@@ -152,8 +211,22 @@ npm start
 ## Rate Limiting
 
 - **General API**: 100 requests per 15 minutes per IP
+- **Public Content**: 200 requests per 15 minutes per IP
 - **Authentication**: 5 requests per 15 minutes per IP
 - **AI Generation**: 10 requests per 15 minutes per IP
+
+## AI Integration
+
+### SiliconFlow (Primary Provider)
+- **Model**: Qwen/QwQ-32B with reasoning capabilities
+- **Features**: Advanced thinking/reasoning text generation
+- **Configuration**: Flexible, user-configurable API settings
+
+### Configuration-Driven Approach
+- **Dynamic Request Building**: Configurable request templates and paths
+- **Response Parsing**: Dynamic content extraction using path configurations
+- **API Key Management**: Encrypted storage with multiple placement options
+- **Multi-Provider Support**: Easy integration of different AI providers
 
 ## Error Responses
 
@@ -170,11 +243,12 @@ All errors follow this format:
 
 - **Helmet**: Security headers
 - **CORS**: Cross-origin resource sharing
-- **Rate Limiting**: Request throttling
+- **Rate Limiting**: Request throttling with different limits for public/private content
 - **JWT Authentication**: Secure token-based auth
 - **Password Hashing**: bcrypt with salt rounds
 - **Input Validation**: Joi schema validation
 - **MongoDB Injection Protection**: Mongoose sanitization
+- **API Key Encryption**: Secure storage of AI provider API keys
 
 ## Development
 
@@ -186,7 +260,7 @@ src/
 ├── routes/         # Express routes
 ├── middleware/     # Custom middleware
 ├── services/       # Business logic services
-└── utils/          # Utility functions
+└── utils/          # Utility functions (HTTP utils, encryption)
 
 config/             # Configuration files
 ```
@@ -198,17 +272,6 @@ config/             # Configuration files
 3. Create routes in `src/routes/`
 4. Add middleware if needed
 5. Update main app.js to mount routes
-
-### Environment Variables
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `MONGODB_URI` | MongoDB connection string | `mongodb://localhost:27017/english-learning` |
-| `JWT_SECRET` | JWT signing secret | `fallback_secret_key` |
-| `OPENAI_API_KEY` | OpenAI API key | Required for AI features |
-| `PORT` | Server port | `5000` |
-| `NODE_ENV` | Environment mode | `development` |
-| `FRONTEND_URL` | Frontend URL for CORS | `http://localhost:3000` |
 
 ## Deployment
 

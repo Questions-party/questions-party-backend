@@ -65,7 +65,7 @@ exports.getUserWords = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: 'Server error fetching words'
+      message: req.t('words.serverErrorFetchingWords')
     });
   }
 };
@@ -96,7 +96,7 @@ exports.addWord = async (req, res) => {
     if (existingWord) {
       return res.status(400).json({
         success: false,
-        message: 'Word already exists in your collection'
+        message: req.t('words.wordAlreadyExists')
       });
     }
 
@@ -116,12 +116,12 @@ exports.addWord = async (req, res) => {
     if (error.code === 11000) {
       return res.status(400).json({
         success: false,
-        message: 'Word already exists in your collection'
+        message: req.t('words.wordAlreadyExists')
       });
     }
     res.status(500).json({
       success: false,
-      message: 'Server error adding word'
+      message: req.t('words.serverErrorAddingWord')
     });
   }
 };
@@ -160,7 +160,7 @@ exports.updateWord = async (req, res) => {
     if (!word) {
       return res.status(404).json({
         success: false,
-        message: 'Word not found'
+        message: req.t('words.wordNotFound')
       });
     }
 
@@ -171,7 +171,7 @@ exports.updateWord = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: 'Server error updating word'
+      message: req.t('words.serverErrorUpdatingWord')
     });
   }
 };
@@ -189,23 +189,78 @@ exports.deleteWord = async (req, res) => {
     if (!word) {
       return res.status(404).json({
         success: false,
-        message: 'Word not found'
+        message: req.t('words.wordNotFound')
       });
     }
 
     res.status(200).json({
       success: true,
-      message: 'Word deleted successfully'
+      message: req.t('words.wordDeletedSuccessfully')
     });
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: 'Server error deleting word'
+      message: req.t('words.serverErrorDeletingWord')
     });
   }
 };
 
-// @desc    Get random words
+// @desc    Get word statistics
+// @route   GET /api/words/stats
+// @access  Private
+exports.getWordStats = async (req, res) => {
+  try {
+    const totalWords = await Word.countDocuments({ userId: req.user.id });
+    const totalUsage = await Word.aggregate([
+      { $match: { userId: req.user.id } },
+      { $group: { _id: null, totalUsage: { $sum: '$usageCount' } } }
+    ]);
+
+    const mostUsedWords = await Word.find({ userId: req.user.id })
+      .sort({ usageCount: -1 })
+      .limit(5)
+      .select('word usageCount');
+
+    res.status(200).json({
+      success: true,
+      stats: {
+        totalWords,
+        totalUsage: totalUsage[0]?.totalUsage || 0,
+        mostUsedWords
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: req.t('words.serverErrorGettingStats')
+    });
+  }
+};
+
+// @desc    Export user's words
+// @route   GET /api/words/export
+// @access  Private
+exports.exportWords = async (req, res) => {
+  try {
+    const words = await Word.find({ userId: req.user.id })
+      .sort({ createdAt: -1 })
+      .select('-userId -__v');
+
+    res.status(200).json({
+      success: true,
+      words,
+      exportDate: new Date().toISOString(),
+      totalCount: words.length
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: req.t('words.serverErrorExportingWords')
+    });
+  }
+};
+
+// @desc    Get random words from user's collection
 // @route   GET /api/words/random
 // @access  Private
 exports.getRandomWords = async (req, res) => {
@@ -220,121 +275,47 @@ exports.getRandomWords = async (req, res) => {
     }
 
     const { count, includeAll } = value;
+    const query = { userId: req.user.id };
 
-    // Build query based on includeAll parameter
-    const query = includeAll ? {} : { userId: req.user.id };
-
-    // Get total count to check if we have enough words
+    // Get total count first
     const totalWords = await Word.countDocuments(query);
-
+    
     if (totalWords === 0) {
-      return res.status(404).json({
-        success: false,
-        message: includeAll ? 'No words found in the system' : 'No words found in your collection'
+      return res.status(200).json({
+        success: true,
+        words: [],
+        totalAvailable: 0
       });
     }
 
-    // Limit count to available words
-    const actualCount = Math.min(count, totalWords);
+    // Ensure count doesn't exceed available words
+    const requestedCount = Math.min(count, totalWords);
+    
+    if (count > totalWords && !includeAll) {
+      return res.status(400).json({
+        success: false,
+        message: req.t('words.randomWordsLimitExceeded')
+      });
+    }
 
     // Get random words using aggregation
     const words = await Word.aggregate([
       { $match: query },
-      { $sample: { size: actualCount } },
-      {
-        $project: {
-          word: 1,
-          definition: 1,
-          partOfSpeech: 1,
-          usageCount: 1,
-          createdAt: 1,
-          // Include user info only if getting words from all users
-          ...(includeAll && {
-            userId: 1
-          })
-        }
-      }
+      { $sample: { size: requestedCount } },
+      { $project: { word: 1, definition: 1, partOfSpeech: 1, usageCount: 1 } }
     ]);
-
-    // If including all users, populate user info
-    if (includeAll) {
-      await Word.populate(words, {
-        path: 'userId',
-        select: 'username'
-      });
-    }
 
     res.status(200).json({
       success: true,
       words,
+      totalAvailable: totalWords,
       requested: count,
-      returned: words.length,
-      totalAvailable: totalWords
+      returned: words.length
     });
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: 'Server error fetching random words'
-    });
-  }
-};
-
-// @desc    Get word statistics
-// @route   GET /api/words/stats
-// @access  Private
-exports.getWordStats = async (req, res) => {
-  try {
-    const userId = req.user.id;
-
-    const stats = await Word.aggregate([
-      { $match: { userId: mongoose.Types.ObjectId(userId) } },
-      {
-        $group: {
-          _id: null,
-          totalWords: { $sum: 1 },
-          totalUsage: { $sum: '$usageCount' },
-          avgUsage: { $avg: '$usageCount' },
-          mostUsedWord: {
-            $max: {
-              word: '$word',
-              count: '$usageCount'
-            }
-          }
-        }
-      }
-    ]);
-
-    // Get words by part of speech
-    const partOfSpeechStats = await Word.aggregate([
-      { $match: { userId: mongoose.Types.ObjectId(userId) } },
-      { $match: { partOfSpeech: { $exists: true, $ne: null } } },
-      {
-        $group: {
-          _id: '$partOfSpeech',
-          count: { $sum: 1 }
-        }
-      },
-      { $sort: { count: -1 } }
-    ]);
-
-    const result = stats[0] || {
-      totalWords: 0,
-      totalUsage: 0,
-      avgUsage: 0,
-      mostUsedWord: null
-    };
-
-    res.status(200).json({
-      success: true,
-      stats: {
-        ...result,
-        partOfSpeech: partOfSpeechStats
-      }
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Server error fetching word statistics'
+      message: req.t('words.serverErrorRandomWords')
     });
   }
 }; 

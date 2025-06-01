@@ -6,6 +6,11 @@ const generationSchema = new mongoose.Schema({
     ref: 'User',
     required: true
   },
+  configId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'AIConfig',
+    required: false // Optional for backward compatibility
+  },
   words: [{
     type: String,
     required: true,
@@ -23,6 +28,11 @@ const generationSchema = new mongoose.Schema({
     required: true,
     trim: true,
     maxlength: 2000
+  },
+  thinkingText: {
+    type: String,
+    trim: true,
+    maxlength: 5000 // Support longer thinking content from QwQ model
   },
   isPublic: {
     type: Boolean,
@@ -46,7 +56,7 @@ const generationSchema = new mongoose.Schema({
   },
   aiModel: {
     type: String,
-    default: 'gpt-3.5-turbo'
+    default: 'Qwen/QwQ-32B' // Updated default to SiliconFlow model
   },
   promptVersion: {
     type: String,
@@ -61,6 +71,7 @@ generationSchema.index({ userId: 1, createdAt: -1 });
 generationSchema.index({ isPublic: 1, createdAt: -1 });
 generationSchema.index({ isPublic: 1, likeCount: -1, createdAt: -1 });
 generationSchema.index({ 'likes.userId': 1 });
+generationSchema.index({ configId: 1 }); // Index for AI configuration tracking
 
 // Method to check if user has liked this generation
 generationSchema.methods.isLikedByUser = function(userId) {

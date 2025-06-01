@@ -13,6 +13,18 @@ const apiLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+// Public content rate limiter (higher limits for anonymous access)
+const publicContentLimiter = rateLimit({
+  windowMs: config.rateLimitWindowMs,
+  max: config.rateLimitMaxPublic,
+  message: {
+    success: false,
+    message: 'Too many requests for public content, please try again later.'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 // Strict rate limiter for AI generation
 const aiLimiter = rateLimit({
   windowMs: config.rateLimitWindowMs,
@@ -27,8 +39,8 @@ const aiLimiter = rateLimit({
 
 // Authentication rate limiter
 const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5, // limit each IP to 5 requests per windowMs
+  windowMs: config.rateLimitWindowMs,
+  max: config.authRateLimitMax,
   message: {
     success: false,
     message: 'Too many authentication attempts, please try again later.'
@@ -40,6 +52,7 @@ const authLimiter = rateLimit({
 
 module.exports = {
   apiLimiter,
+  publicContentLimiter,
   aiLimiter,
   authLimiter
 }; 

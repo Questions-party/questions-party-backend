@@ -70,7 +70,7 @@ exports.register = async (req, res) => {
       const field = existingUser.email === email ? 'email' : 'username';
       return res.status(400).json({
         success: false,
-        message: `User with this ${field} already exists`
+        message: req.t('auth.userWithFieldExists', { field })
       });
     }
 
@@ -85,7 +85,7 @@ exports.register = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: 'Server error during registration'
+      message: req.t('auth.serverErrorRegistration')
     });
   }
 };
@@ -112,7 +112,7 @@ exports.login = async (req, res) => {
     if (!user) {
       return res.status(401).json({
         success: false,
-        message: 'Invalid credentials'
+        message: req.t('auth.invalidCredentials')
       });
     }
 
@@ -122,7 +122,7 @@ exports.login = async (req, res) => {
     if (!isMatch) {
       return res.status(401).json({
         success: false,
-        message: 'Invalid credentials'
+        message: req.t('auth.invalidCredentials')
       });
     }
 
@@ -130,7 +130,7 @@ exports.login = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: 'Server error during login'
+      message: req.t('auth.serverErrorLogin')
     });
   }
 };
@@ -155,7 +155,7 @@ exports.getMe = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: 'Server error getting user info'
+      message: req.t('auth.serverErrorGettingUserInfo')
     });
   }
 };
@@ -188,7 +188,7 @@ exports.updateProfile = async (req, res) => {
         const field = existingUser.username === username ? 'username' : 'email';
         return res.status(400).json({
           success: false,
-          message: `${field} is already taken`
+          message: req.t('auth.fieldTaken', { field })
         });
       }
     }
@@ -220,7 +220,7 @@ exports.updateProfile = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: 'Server error updating profile'
+      message: req.t('auth.serverErrorUpdatingProfile')
     });
   }
 };
@@ -257,7 +257,7 @@ exports.updatePreferences = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: 'Server error updating preferences'
+      message: req.t('auth.serverErrorUpdatingPreferences')
     });
   }
 }; 

@@ -14,37 +14,37 @@ const router = express.Router();
 
 // @route   POST /api/generate
 // @desc    Generate sentence with AI
-// @access  Private
+// @access  Private (requires authentication)
 router.post('/', auth, generateSentence);
 
 // @route   GET /api/generations/public
 // @desc    Get public generations feed
-// @access  Public (with optional auth)
-router.get('/public', optionalAuth, getPublicGenerations);
+// @access  Public (NO AUTHENTICATION REQUIRED)
+router.get('/public', getPublicGenerations);
 
 // @route   GET /api/generations
 // @desc    Get user's generations
-// @access  Private
+// @access  Private (requires authentication)
 router.get('/', auth, getUserGenerations);
 
 // @route   GET /api/generations/:id
 // @desc    Get single generation
-// @access  Public (with optional auth)
+// @access  Public with optional auth (public generations viewable by anyone, private only by owner)
 router.get('/:id', optionalAuth, getGeneration);
 
 // @route   POST /api/generations/:id/like
 // @desc    Toggle like on generation
-// @access  Private
+// @access  Private (AUTHENTICATION REQUIRED for liking)
 router.post('/:id/like', auth, toggleLike);
 
 // @route   PUT /api/generations/:id/privacy
 // @desc    Update generation privacy
-// @access  Private
+// @access  Private (requires authentication)
 router.put('/:id/privacy', auth, updateGenerationPrivacy);
 
 // @route   DELETE /api/generations/:id
 // @desc    Delete generation
-// @access  Private
+// @access  Private (requires authentication)
 router.delete('/:id', auth, deleteGeneration);
 
 module.exports = router; 

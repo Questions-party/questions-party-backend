@@ -1,0 +1,85 @@
+{
+  "auth": {
+    "userWithFieldExists": "此{{field}}的用户已存在",
+    "serverErrorRegistration": "注册过程中出现服务器错误",
+    "invalidCredentials": "用户凭证无效",
+    "serverErrorLogin": "登录过程中出现服务器错误",
+    "serverErrorGettingUserInfo": "获取用户信息时出现服务器错误",
+    "fieldTaken": "{{field}}已被使用",
+    "serverErrorUpdatingProfile": "更新个人资料时出现服务器错误",
+    "serverErrorUpdatingPreferences": "更新偏好设置时出现服务器错误",
+    "notAuthorized": "未授权，未提供令牌",
+    "notAuthorizedUserNotFound": "未授权，用户未找到",
+    "notAuthorizedTokenFailed": "未授权，令牌验证失败",
+    "serverErrorAuthentication": "身份验证时出现服务器错误"
+  },
+  "words": {
+    "serverErrorFetchingWords": "获取单词时出现服务器错误",
+    "wordAlreadyExists": "您的词库中已存在此单词",
+    "serverErrorAddingWord": "添加单词时出现服务器错误",
+    "wordNotFound": "未找到单词",
+    "serverErrorUpdatingWord": "更新单词时出现服务器错误",
+    "wordDeletedSuccessfully": "单词删除成功",
+    "serverErrorDeletingWord": "删除单词时出现服务器错误",
+    "serverErrorGettingStats": "获取单词统计时出现服务器错误",
+    "serverErrorExportingWords": "导出单词时出现服务器错误",
+    "randomWordsLimitExceeded": "随机单词数量不能超过用户的总单词数",
+    "noWordsToGenerate": "没有可用的单词生成随机选择",
+    "serverErrorRandomWords": "生成随机单词时出现服务器错误"
+  },
+  "generations": {
+    "serverErrorGeneratingSentence": "生成句子时出现服务器错误",
+    "serverErrorFetchingGenerations": "获取生成结果时出现服务器错误",
+    "generationNotFound": "未找到生成结果",
+    "serverErrorUpdatingGeneration": "更新生成结果时出现服务器错误",
+    "generationDeletedSuccessfully": "生成结果删除成功",
+    "serverErrorDeletingGeneration": "删除生成结果时出现服务器错误",
+    "alreadyLiked": "您已经点赞过此生成结果",
+    "likedSuccessfully": "生成结果点赞成功",
+    "serverErrorLikingGeneration": "点赞生成结果时出现服务器错误",
+    "notLiked": "您尚未点赞此生成结果",
+    "unlikedSuccessfully": "取消点赞成功",
+    "serverErrorUnlikingGeneration": "取消点赞时出现服务器错误",
+    "serverErrorGettingStats": "获取生成统计时出现服务器错误"
+  },
+  "aiConfig": {
+    "serverErrorFetchingConfigs": "获取AI配置时出现服务器错误",
+    "configNotFound": "未找到AI配置",
+    "serverErrorCreatingConfig": "创建AI配置时出现服务器错误",
+    "serverErrorUpdatingConfig": "更新AI配置时出现服务器错误",
+    "configDeletedSuccessfully": "AI配置删除成功",
+    "serverErrorDeletingConfig": "删除AI配置时出现服务器错误",
+    "serverErrorTestingConfig": "测试AI配置时出现服务器错误",
+    "configTestSuccessful": "配置测试成功",
+    "configTestFailed": "配置测试失败：{{message}}",
+    "defaultConfigCreated": "默认硅动科技配置创建成功"
+  },
+  "validation": {
+    "required": "{{field}}为必填项",
+    "invalidEmail": "请提供有效的邮箱地址",
+    "minLength": "{{field}}至少需要{{min}}个字符",
+    "maxLength": "{{field}}不能超过{{max}}个字符",
+    "invalidFormat": "{{field}}格式无效",
+    "invalidValue": "{{field}}值无效"
+  },
+  "common": {
+    "serverError": "内部服务器错误",
+    "notFound": "资源未找到",
+    "unauthorized": "未授权访问",
+    "forbidden": "访问被禁止",
+    "badRequest": "请求错误",
+    "validationError": "验证错误",
+    "success": "操作成功完成",
+    "created": "资源创建成功",
+    "updated": "资源更新成功",
+    "deleted": "资源删除成功",
+    "routeNotFound": "路由{{route}}未找到"
+  },
+  "ai": {
+    "generationFailed": "AI生成失败：{{message}}",
+    "configurationError": "AI配置错误：{{message}}",
+    "connectionError": "无法连接到AI服务",
+    "quotaExceeded": "AI服务配额已超限",
+    "rateLimited": "AI服务请求过于频繁"
+  }
+} 

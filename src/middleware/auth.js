@@ -14,7 +14,7 @@ const auth = async (req, res, next) => {
     if (!token) {
       return res.status(401).json({
         success: false,
-        message: 'Not authorized, no token provided'
+        message: req.t ? req.t('auth.notAuthorized') : 'Not authorized, no token provided'
       });
     }
 
@@ -28,7 +28,7 @@ const auth = async (req, res, next) => {
       if (!req.user) {
         return res.status(401).json({
           success: false,
-          message: 'Not authorized, user not found'
+          message: req.t ? req.t('auth.notAuthorizedUserNotFound') : 'Not authorized, user not found'
         });
       }
 
@@ -36,13 +36,13 @@ const auth = async (req, res, next) => {
     } catch (error) {
       return res.status(401).json({
         success: false,
-        message: 'Not authorized, token failed'
+        message: req.t ? req.t('auth.notAuthorizedTokenFailed') : 'Not authorized, token failed'
       });
     }
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: 'Server error in authentication'
+      message: req.t ? req.t('auth.serverErrorAuthentication') : 'Server error in authentication'
     });
   }
 };

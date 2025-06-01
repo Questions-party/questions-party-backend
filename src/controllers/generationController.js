@@ -32,41 +32,32 @@ exports.generateSentence = async (req, res) => {
 
     const { words, isPublic } = req.body;
 
-    // Validate and clean words
-    let cleanedWords;
-    try {
-      cleanedWords = aiService.validateWords(words);
-    } catch (validationError) {
-      return res.status(400).json({
-        success: false,
-        message: validationError.message
-      });
-    }
-
-    // Generate sentence using AI
+    // Generate sentence using AI with new service
     let aiResult;
     try {
-      aiResult = await aiService.generateSentence(cleanedWords);
+      aiResult = await aiService.generateSentence(words, req.user.id);
     } catch (aiError) {
       return res.status(500).json({
         success: false,
-        message: aiError.message
+        message: req.t('ai.generationFailed', { message: aiError.message })
       });
     }
 
     // Save generation to database
     const generation = await Generation.create({
       userId: req.user.id,
-      words: cleanedWords,
+      words: words.map(word => word.trim().toLowerCase()),
       sentence: aiResult.sentence,
       explanation: aiResult.explanation,
-      isPublic: isPublic !== false // default to true if not specified
+      thinkingText: aiResult.thinking, // Support for QwQ reasoning
+      isPublic: isPublic !== false, // default to true if not specified
+      aiModel: aiResult.aiModel || 'Qwen/QwQ-32B'
     });
 
     // Update word usage counts for user's words
     await Word.updateMany(
       { 
-        word: { $in: cleanedWords }, 
+        word: { $in: words.map(w => w.trim().toLowerCase()) }, 
         userId: req.user.id 
       },
       { $inc: { usageCount: 1 } }
@@ -80,9 +71,10 @@ exports.generateSentence = async (req, res) => {
       generation
     });
   } catch (error) {
+    console.error('Generation error:', error);
     res.status(500).json({
       success: false,
-      message: 'Server error generating sentence'
+      message: req.t('generations.serverErrorGeneratingSentence')
     });
   }
 };
@@ -128,14 +120,14 @@ exports.getUserGenerations = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: 'Server error fetching generations'
+      message: req.t('generations.serverErrorFetchingGenerations')
     });
   }
 };
 
 // @desc    Get public generations feed
 // @route   GET /api/generations/public
-// @access  Public (with optional auth)
+// @access  Public (NO AUTHENTICATION REQUIRED)
 exports.getPublicGenerations = async (req, res) => {
   try {
     // Validate query parameters
@@ -150,71 +142,73 @@ exports.getPublicGenerations = async (req, res) => {
     const { page, limit, sortBy } = value;
     const skip = (page - 1) * limit;
 
-    // Build sort criteria
-    let sortCriteria;
+    // Build aggregation pipeline for public generations
     let aggregatePipeline = [
       { $match: { isPublic: true } }
     ];
 
+    // Add sorting logic
     switch (sortBy) {
       case 'liked':
-        sortCriteria = { likeCount: -1, createdAt: -1 };
+        aggregatePipeline.push({ $sort: { likeCount: -1, createdAt: -1 } });
         break;
       case 'trending':
-        // Trending algorithm: combine likes and recency
+        // Enhanced trending algorithm with recency boost
+        const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
         aggregatePipeline.push({
           $addFields: {
             trendingScore: {
               $add: [
                 { $multiply: ['$likeCount', 10] }, // Weight likes heavily
                 {
-                  $divide: [
-                    { $subtract: [new Date(), '$createdAt'] },
-                    86400000 // Convert to days
+                  $cond: [
+                    { $gte: ['$createdAt', oneDayAgo] },
+                    5, // Boost for recent posts
+                    0
                   ]
                 }
               ]
             }
           }
         });
-        sortCriteria = { trendingScore: -1 };
+        aggregatePipeline.push({ $sort: { trendingScore: -1, createdAt: -1 } });
         break;
       default:
-        sortCriteria = { createdAt: -1 };
+        aggregatePipeline.push({ $sort: { createdAt: -1 } });
     }
 
-    // Add sort, skip, limit to pipeline
+    // Add pagination
     aggregatePipeline.push(
-      { $sort: sortCriteria },
       { $skip: skip },
-      { $limit: parseInt(limit) },
-      {
-        $lookup: {
-          from: 'users',
-          localField: 'userId',
-          foreignField: '_id',
-          as: 'userId',
-          pipeline: [
-            { $project: { username: 1 } }
-          ]
-        }
-      },
-      {
-        $unwind: '$userId'
-      }
+      { $limit: parseInt(limit) }
     );
 
-    // Add user like status if authenticated
-    if (req.user) {
-      aggregatePipeline.push({
-        $addFields: {
-          isLikedByCurrentUser: {
-            $in: [mongoose.Types.ObjectId(req.user.id), '$likes.userId']
-          }
-        }
-      });
-    }
+    // Add user lookup
+    aggregatePipeline.push({
+      $lookup: {
+        from: 'users',
+        localField: 'userId',
+        foreignField: '_id',
+        as: 'user',
+        pipeline: [
+          { $project: { username: 1 } }
+        ]
+      }
+    });
 
+    // Transform user field
+    aggregatePipeline.push({
+      $addFields: {
+        userId: { $arrayElemAt: ['$user', 0] }
+      }
+    });
+
+    // Remove temporary fields
+    aggregatePipeline.push({
+      $unset: ['user', 'trendingScore']
+    });
+
+    // Execute aggregation
     const generations = await Generation.aggregate(aggregatePipeline);
 
     // Get total count for pagination
@@ -231,74 +225,17 @@ exports.getPublicGenerations = async (req, res) => {
       }
     });
   } catch (error) {
+    console.error('Public generations error:', error);
     res.status(500).json({
       success: false,
-      message: 'Server error fetching public generations'
-    });
-  }
-};
-
-// @desc    Toggle like on generation
-// @route   POST /api/generations/:id/like
-// @access  Private
-exports.toggleLike = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const userId = req.user.id;
-
-    // Validate ObjectId
-    if (!mongoose.isValidObjectId(id)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid generation ID'
-      });
-    }
-
-    const generation = await Generation.findById(id);
-    
-    if (!generation) {
-      return res.status(404).json({
-        success: false,
-        message: 'Generation not found'
-      });
-    }
-
-    // Check if user has already liked this generation
-    const likeIndex = generation.likes.findIndex(
-      like => like.userId.toString() === userId
-    );
-
-    let isLiked;
-    if (likeIndex > -1) {
-      // Remove like
-      generation.likes.splice(likeIndex, 1);
-      generation.likeCount = Math.max(0, generation.likeCount - 1);
-      isLiked = false;
-    } else {
-      // Add like
-      generation.likes.push({ userId });
-      generation.likeCount += 1;
-      isLiked = true;
-    }
-
-    await generation.save();
-
-    res.status(200).json({
-      success: true,
-      liked: isLiked,
-      likeCount: generation.likeCount
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Server error toggling like'
+      message: req.t('generations.serverErrorFetchingGenerations')
     });
   }
 };
 
 // @desc    Get single generation
 // @route   GET /api/generations/:id
-// @access  Public (with optional auth)
+// @access  Public (NO AUTHENTICATION REQUIRED for public generations)
 exports.getGeneration = async (req, res) => {
   try {
     const { id } = req.params;
@@ -307,53 +244,53 @@ exports.getGeneration = async (req, res) => {
     if (!mongoose.isValidObjectId(id)) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid generation ID'
+        message: req.t('common.badRequest')
       });
     }
 
-    let generation = await Generation.findById(id)
+    // Find public generation or user's own generation if authenticated
+    let query = { _id: id };
+    
+    // If user is authenticated, they can see their own private generations
+    if (req.user) {
+      query = {
+        _id: id,
+        $or: [
+          { isPublic: true },
+          { userId: req.user.id }
+        ]
+      };
+    } else {
+      // If not authenticated, only show public generations
+      query.isPublic = true;
+    }
+
+    const generation = await Generation.findOne(query)
       .populate('userId', 'username');
 
     if (!generation) {
       return res.status(404).json({
         success: false,
-        message: 'Generation not found'
+        message: req.t('generations.generationNotFound')
       });
-    }
-
-    // Check if generation is public or belongs to current user
-    if (!generation.isPublic && (!req.user || generation.userId._id.toString() !== req.user.id)) {
-      return res.status(403).json({
-        success: false,
-        message: 'Access denied'
-      });
-    }
-
-    // Add like status if user is authenticated
-    let isLikedByCurrentUser = false;
-    if (req.user) {
-      isLikedByCurrentUser = generation.isLikedByUser(req.user.id);
     }
 
     res.status(200).json({
       success: true,
-      generation: {
-        ...generation.toObject(),
-        isLikedByCurrentUser
-      }
+      generation
     });
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: 'Server error fetching generation'
+      message: req.t('generations.serverErrorFetchingGenerations')
     });
   }
 };
 
-// @desc    Delete generation
-// @route   DELETE /api/generations/:id
-// @access  Private
-exports.deleteGeneration = async (req, res) => {
+// @desc    Toggle like on generation
+// @route   POST /api/generations/:id/like
+// @access  Private (AUTHENTICATION REQUIRED)
+exports.toggleLike = async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -361,30 +298,57 @@ exports.deleteGeneration = async (req, res) => {
     if (!mongoose.isValidObjectId(id)) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid generation ID'
+        message: req.t('common.badRequest')
       });
     }
 
-    const generation = await Generation.findOneAndDelete({
-      _id: id,
-      userId: req.user.id
+    // Find public generation (can only like public generations)
+    const generation = await Generation.findOne({ 
+      _id: id, 
+      isPublic: true 
     });
 
     if (!generation) {
       return res.status(404).json({
         success: false,
-        message: 'Generation not found'
+        message: req.t('generations.generationNotFound')
       });
     }
 
-    res.status(200).json({
-      success: true,
-      message: 'Generation deleted successfully'
-    });
+    const userId = req.user.id;
+    const existingLikeIndex = generation.likes.findIndex(
+      like => like.userId.toString() === userId
+    );
+
+    if (existingLikeIndex > -1) {
+      // Remove like
+      generation.likes.splice(existingLikeIndex, 1);
+      generation.likeCount = Math.max(0, generation.likeCount - 1);
+      await generation.save();
+
+      res.status(200).json({
+        success: true,
+        message: req.t('generations.unlikedSuccessfully'),
+        liked: false,
+        likeCount: generation.likeCount
+      });
+    } else {
+      // Add like
+      generation.likes.push({ userId });
+      generation.likeCount += 1;
+      await generation.save();
+
+      res.status(200).json({
+        success: true,
+        message: req.t('generations.likedSuccessfully'),
+        liked: true,
+        likeCount: generation.likeCount
+      });
+    }
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: 'Server error deleting generation'
+      message: req.t('generations.serverErrorLikingGeneration')
     });
   }
 };
@@ -401,7 +365,7 @@ exports.updateGenerationPrivacy = async (req, res) => {
     if (typeof isPublic !== 'boolean') {
       return res.status(400).json({
         success: false,
-        message: 'isPublic must be a boolean value'
+        message: req.t('common.badRequest')
       });
     }
 
@@ -409,22 +373,26 @@ exports.updateGenerationPrivacy = async (req, res) => {
     if (!mongoose.isValidObjectId(id)) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid generation ID'
+        message: req.t('common.badRequest')
       });
     }
 
-    const generation = await Generation.findOneAndUpdate(
-      { _id: id, userId: req.user.id },
-      { isPublic },
-      { new: true }
-    ).populate('userId', 'username');
+    // Find user's generation
+    const generation = await Generation.findOne({
+      _id: id,
+      userId: req.user.id
+    });
 
     if (!generation) {
       return res.status(404).json({
         success: false,
-        message: 'Generation not found'
+        message: req.t('generations.generationNotFound')
       });
     }
+
+    // Update privacy setting
+    generation.isPublic = isPublic;
+    await generation.save();
 
     res.status(200).json({
       success: true,
@@ -433,7 +401,47 @@ exports.updateGenerationPrivacy = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: 'Server error updating generation privacy'
+      message: req.t('generations.serverErrorUpdatingGeneration')
+    });
+  }
+};
+
+// @desc    Delete generation
+// @route   DELETE /api/generations/:id
+// @access  Private
+exports.deleteGeneration = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Validate ObjectId
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({
+        success: false,
+        message: req.t('common.badRequest')
+      });
+    }
+
+    // Find and delete user's generation
+    const generation = await Generation.findOneAndDelete({
+      _id: id,
+      userId: req.user.id
+    });
+
+    if (!generation) {
+      return res.status(404).json({
+        success: false,
+        message: req.t('generations.generationNotFound')
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: req.t('generations.generationDeletedSuccessfully')
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: req.t('generations.serverErrorDeletingGeneration')
     });
   }
 }; 
