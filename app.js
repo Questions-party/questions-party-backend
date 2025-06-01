@@ -43,6 +43,7 @@ app.use(optionalAuth);
 const authRoutes = require('./src/routes/auth');
 const wordRoutes = require('./src/routes/words');
 const generationRoutes = require('./src/routes/generations');
+const publicGenerationRoutes = require('./src/routes/publicGenerations');
 const aiConfigRoutes = require('./src/routes/aiConfigs');
 
 // Mount auth routes with authentication rate limiting
@@ -59,7 +60,7 @@ app.use('/api/ai-configs', apiLimiter, aiConfigRoutes);
 app.use('/api/generate', aiLimiter, generationRoutes);
 
 // Public generation routes with higher rate limits (no auth required)
-app.use('/api/generations/public', publicContentLimiter);
+app.use('/api/generations/public', publicContentLimiter, publicGenerationRoutes);
 
 // Other generation routes with general API rate limiting
 app.use('/api/generations', apiLimiter, generationRoutes);

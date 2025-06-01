@@ -2,7 +2,6 @@ const express = require('express');
 const {
   generateSentence,
   getUserGenerations,
-  getPublicGenerations,
   toggleLike,
   getGeneration,
   deleteGeneration,
@@ -16,11 +15,6 @@ const router = express.Router();
 // @desc    Generate sentence with AI
 // @access  Private (requires authentication)
 router.post('/', auth, generateSentence);
-
-// @route   GET /api/generations/public
-// @desc    Get public generations feed
-// @access  Public (NO AUTHENTICATION REQUIRED)
-router.get('/public', getPublicGenerations);
 
 // @route   GET /api/generations
 // @desc    Get user's generations

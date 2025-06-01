@@ -444,4 +444,50 @@ exports.deleteGeneration = async (req, res) => {
       message: req.t('generations.serverErrorDeletingGeneration')
     });
   }
+};
+
+// @desc    Get public statistics
+// @route   GET /api/generations/public/stats
+// @access  Public (NO AUTHENTICATION REQUIRED)
+exports.getPublicStatistics = async (req, res) => {
+  try {
+    // Aggregate statistics for public generations
+    const statisticsQuery = [
+      {
+        $match: { isPublic: true }
+      },
+      {
+        $group: {
+          _id: null,
+          totalGenerations: { $sum: 1 },
+          totalLikes: { $sum: '$likeCount' },
+          totalWords: { $sum: { $size: '$words' } }
+        }
+      }
+    ];
+
+    const [statistics] = await Generation.aggregate(statisticsQuery);
+
+    // If no public generations exist, return zero stats
+    const stats = statistics || {
+      totalGenerations: 0,
+      totalLikes: 0,
+      totalWords: 0
+    };
+
+    res.status(200).json({
+      success: true,
+      statistics: {
+        totalGenerations: stats.totalGenerations,
+        totalWords: stats.totalWords,
+        totalLikes: stats.totalLikes
+      }
+    });
+  } catch (error) {
+    console.error('Public statistics error:', error);
+    res.status(500).json({
+      success: false,
+      message: req.t('generations.serverErrorGettingStats')
+    });
+  }
 }; 
