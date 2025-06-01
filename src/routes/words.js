@@ -5,7 +5,8 @@ const {
   updateWord,
   deleteWord,
   getRandomWords,
-  getWordStats
+  getWordStats,
+  getPartsOfSpeech
 } = require('../controllers/wordController');
 const { auth } = require('../middleware/auth');
 
@@ -20,6 +21,11 @@ router.get('/random', auth, getRandomWords);
 // @desc    Get word statistics
 // @access  Private
 router.get('/stats', auth, getWordStats);
+
+// @route   GET /api/words/parts-of-speech
+// @desc    Get available parts of speech
+// @access  Private
+router.get('/parts-of-speech', auth, getPartsOfSpeech);
 
 // @route   GET /api/words
 // @desc    Get user's words

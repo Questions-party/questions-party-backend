@@ -16,15 +16,18 @@
   "words": {
     "serverErrorFetchingWords": "Server error fetching words",
     "wordAlreadyExists": "Word already exists in your collection",
+    "spellingError": "Spelling error detected. Please check your word.",
     "serverErrorAddingWord": "Server error adding word",
     "wordNotFound": "Word not found",
     "serverErrorUpdatingWord": "Server error updating word",
     "wordDeletedSuccessfully": "Word deleted successfully",
     "serverErrorDeletingWord": "Server error deleting word",
     "serverErrorGettingStats": "Server error getting word statistics",
+    "serverErrorGettingPartsOfSpeech": "Server error getting parts of speech",
     "serverErrorExportingWords": "Server error exporting words",
     "randomWordsLimitExceeded": "Random words count cannot exceed user's total words",
     "noWordsToGenerate": "No words available to generate random selection",
+    "noAvailableWords": "No random words available that you don't already have",
     "serverErrorRandomWords": "Server error generating random words"
   },
   "generations": {

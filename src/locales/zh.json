@@ -25,6 +25,7 @@
     "serverErrorExportingWords": "导出单词时出现服务器错误",
     "randomWordsLimitExceeded": "随机单词数量不能超过用户的总单词数",
     "noWordsToGenerate": "没有可用的单词生成随机选择",
+    "noAvailableWords": "没有您尚未拥有的随机单词可用",
     "serverErrorRandomWords": "生成随机单词时出现服务器错误"
   },
   "generations": {

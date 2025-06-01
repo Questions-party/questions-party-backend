@@ -1,17 +1,10 @@
 const Word = require('../models/Word');
 const Joi = require('joi');
-const mongoose = require('mongoose');
+const { processWord } = require('../utils/wordUtils');
 
 // Validation schemas
 const addWordSchema = Joi.object({
-  word: Joi.string().min(1).max(50).pattern(/^[a-zA-Z\-']+$/).required(),
-  definition: Joi.string().max(500),
-  partOfSpeech: Joi.string().valid('noun', 'verb', 'adjective', 'adverb', 'preposition', 'conjunction', 'interjection', 'pronoun', 'determiner')
-});
-
-const randomWordsSchema = Joi.object({
-  count: Joi.number().integer().min(1).max(500).default(5),
-  includeAll: Joi.boolean().default(false)
+  word: Joi.string().min(1).max(50).pattern(/^[a-zA-Z\-']+$/).required()
 });
 
 // @desc    Get user's words
@@ -19,15 +12,20 @@ const randomWordsSchema = Joi.object({
 // @access  Private
 exports.getUserWords = async (req, res) => {
   try {
-    const { page = 1, limit = 50, sortBy = 'recent', search } = req.query;
+    const { page = 1, limit = 50, sortBy = 'recent', search, partOfSpeech } = req.query;
     const skip = (page - 1) * limit;
 
-    // Build query
-    const query = { userId: req.user.id };
+    // Build query - find words where user is in userIds array
+    const query = { userIds: req.user.id };
     
     // Add search filter if provided
     if (search) {
       query.word = { $regex: search.trim(), $options: 'i' };
+    }
+
+    // Add part of speech filter if provided
+    if (partOfSpeech && partOfSpeech !== 'all') {
+      query.primaryPartOfSpeech = partOfSpeech;
     }
 
     // Build sort criteria
@@ -84,34 +82,60 @@ exports.addWord = async (req, res) => {
       });
     }
 
-    const { word, definition, partOfSpeech } = req.body;
+    const { word } = req.body;
     const cleanWord = word.toLowerCase().trim();
 
-    // Check if word already exists for this user
-    const existingWord = await Word.findOne({
-      word: cleanWord,
-      userId: req.user.id
-    });
-
-    if (existingWord) {
+    // Process word (spell check and WordNet lookup)
+    const wordProcessing = await processWord(cleanWord);
+    
+    if (!wordProcessing.success) {
       return res.status(400).json({
         success: false,
-        message: req.t('words.wordAlreadyExists')
+        message: req.t('words.spellingError'),
+        error: wordProcessing.error,
+        suggestions: wordProcessing.suggestions,
+        word: wordProcessing.word
       });
     }
 
-    // Create new word
-    const newWord = await Word.create({
-      word: cleanWord,
-      userId: req.user.id,
-      definition: definition?.trim(),
-      partOfSpeech
+    // Check if word already exists
+    const existingWord = await Word.findOne({
+      word: cleanWord
     });
 
-    res.status(201).json({
-      success: true,
-      word: newWord
-    });
+    if (existingWord) {
+      // Check if user already has this word
+      if (existingWord.userIds.includes(req.user.id)) {
+        return res.status(400).json({
+          success: false,
+          message: req.t('words.wordAlreadyExists')
+        });
+      }
+
+      // Add user to existing word
+      existingWord.userIds.push(req.user.id);
+      await existingWord.save();
+
+      res.status(201).json({
+        success: true,
+        word: existingWord
+      });
+    } else {
+      // Create new word with WordNet data
+      const newWord = await Word.create({
+        word: cleanWord,
+        userIds: [req.user.id],
+        definitions: wordProcessing.definitions || [],
+        primaryDefinition: wordProcessing.primaryDefinition,
+        primaryPartOfSpeech: wordProcessing.primaryPartOfSpeech,
+        wordNetProcessed: wordProcessing.wordNetProcessed
+      });
+
+      res.status(201).json({
+        success: true,
+        word: newWord
+      });
+    }
   } catch (error) {
     if (error.code === 11000) {
       return res.status(400).json({
@@ -119,6 +143,7 @@ exports.addWord = async (req, res) => {
         message: req.t('words.wordAlreadyExists')
       });
     }
+    console.error('Add word error:', error);
     res.status(500).json({
       success: false,
       message: req.t('words.serverErrorAddingWord')
@@ -126,17 +151,14 @@ exports.addWord = async (req, res) => {
   }
 };
 
-// @desc    Update word
+// @desc    Update word (only usage count can be updated by users)
 // @route   PUT /api/words/:id
 // @access  Private
 exports.updateWord = async (req, res) => {
   try {
-    const { definition, partOfSpeech } = req.body;
-    
-    // Validate input
+    // Only allow updating usage count
     const updateSchema = Joi.object({
-      definition: Joi.string().max(500),
-      partOfSpeech: Joi.string().valid('noun', 'verb', 'adjective', 'adverb', 'preposition', 'conjunction', 'interjection', 'pronoun', 'determiner')
+      usageCount: Joi.number().min(0)
     });
 
     const { error } = updateSchema.validate(req.body);
@@ -147,15 +169,11 @@ exports.updateWord = async (req, res) => {
       });
     }
 
-    // Find and update word
-    const word = await Word.findOneAndUpdate(
-      { _id: req.params.id, userId: req.user.id },
-      { 
-        definition: definition?.trim(),
-        partOfSpeech 
-      },
-      { new: true, runValidators: true }
-    );
+    // Find word where user is in userIds array
+    const word = await Word.findOne({
+      _id: req.params.id,
+      userIds: req.user.id
+    });
 
     if (!word) {
       return res.status(404).json({
@@ -163,6 +181,13 @@ exports.updateWord = async (req, res) => {
         message: req.t('words.wordNotFound')
       });
     }
+
+    // Update word
+    if (req.body.usageCount !== undefined) {
+      word.usageCount = req.body.usageCount;
+    }
+
+    await word.save();
 
     res.status(200).json({
       success: true,
@@ -181,9 +206,9 @@ exports.updateWord = async (req, res) => {
 // @access  Private
 exports.deleteWord = async (req, res) => {
   try {
-    const word = await Word.findOneAndDelete({
+    const word = await Word.findOne({
       _id: req.params.id,
-      userId: req.user.id
+      userIds: req.user.id
     });
 
     if (!word) {
@@ -191,6 +216,15 @@ exports.deleteWord = async (req, res) => {
         success: false,
         message: req.t('words.wordNotFound')
       });
+    }
+
+    // If only one user has this word, delete the entire word
+    if (word.userIds.length === 1) {
+      await Word.findByIdAndDelete(req.params.id);
+    } else {
+      // Remove user from userIds array
+      word.userIds = word.userIds.filter(userId => userId.toString() !== req.user.id);
+      await word.save();
     }
 
     res.status(200).json({
@@ -210,23 +244,31 @@ exports.deleteWord = async (req, res) => {
 // @access  Private
 exports.getWordStats = async (req, res) => {
   try {
-    const totalWords = await Word.countDocuments({ userId: req.user.id });
+    const totalWords = await Word.countDocuments({ userIds: req.user.id });
     const totalUsage = await Word.aggregate([
-      { $match: { userId: req.user.id } },
+      { $match: { userIds: req.user.id } },
       { $group: { _id: null, totalUsage: { $sum: '$usageCount' } } }
     ]);
 
-    const mostUsedWords = await Word.find({ userId: req.user.id })
+    const mostUsedWords = await Word.find({ userIds: req.user.id })
       .sort({ usageCount: -1 })
       .limit(5)
       .select('word usageCount');
+
+    // Get part of speech distribution
+    const partOfSpeechStats = await Word.aggregate([
+      { $match: { userIds: req.user.id, primaryPartOfSpeech: { $ne: null } } },
+      { $group: { _id: '$primaryPartOfSpeech', count: { $sum: 1 } } },
+      { $sort: { count: -1 } }
+    ]);
 
     res.status(200).json({
       success: true,
       stats: {
         totalWords,
         totalUsage: totalUsage[0]?.totalUsage || 0,
-        mostUsedWords
+        mostUsedWords,
+        partOfSpeechStats
       }
     });
   } catch (error) {
@@ -242,9 +284,9 @@ exports.getWordStats = async (req, res) => {
 // @access  Private
 exports.exportWords = async (req, res) => {
   try {
-    const words = await Word.find({ userId: req.user.id })
+    const words = await Word.find({ userIds: req.user.id })
       .sort({ createdAt: -1 })
-      .select('-userId -__v');
+      .select('-userIds -__v');
 
     res.status(200).json({
       success: true,
@@ -260,13 +302,19 @@ exports.exportWords = async (req, res) => {
   }
 };
 
-// @desc    Get random words from user's collection
+// @desc    Get random words from global collection
 // @route   GET /api/words/random
 // @access  Private
 exports.getRandomWords = async (req, res) => {
   try {
     // Validate query parameters
-    const { error, value } = randomWordsSchema.validate(req.query);
+    const randomWordsValidationSchema = Joi.object({
+      count: Joi.number().integer().min(1).max(500).default(5),
+      excludeUserWords: Joi.boolean().default(false),
+      partOfSpeech: Joi.string().valid('noun', 'verb', 'adjective', 'adverb', 'preposition', 'conjunction', 'interjection', 'pronoun', 'determiner', 'adjective satellite')
+    });
+
+    const { error, value } = randomWordsValidationSchema.validate(req.query);
     if (error) {
       return res.status(400).json({
         success: false,
@@ -274,48 +322,138 @@ exports.getRandomWords = async (req, res) => {
       });
     }
 
-    const { count, includeAll } = value;
-    const query = { userId: req.user.id };
+    const { count, excludeUserWords, partOfSpeech } = value;
 
-    // Get total count first
-    const totalWords = await Word.countDocuments(query);
-    
-    if (totalWords === 0) {
+    // Build aggregation pipeline for random word selection
+    let aggregationPipeline = [];
+
+    // Build match criteria
+    let matchCriteria = {};
+
+    // If excludeUserWords is true, exclude words that the user already has
+    if (excludeUserWords) {
+      matchCriteria.userIds = { $ne: req.user.id };
+    }
+
+    // Filter by part of speech if specified
+    if (partOfSpeech) {
+      matchCriteria.primaryPartOfSpeech = partOfSpeech;
+    }
+
+    // Add match stage if there are criteria
+    if (Object.keys(matchCriteria).length > 0) {
+      aggregationPipeline.push({ $match: matchCriteria });
+    }
+
+    // Add random sampling stage
+    aggregationPipeline.push({
+      $sample: { size: count * 2 } // Get more than needed to account for potential filtering
+    });
+
+    // Project only the fields we need
+    aggregationPipeline.push({
+      $project: {
+        _id: 1,
+        word: 1,
+        primaryDefinition: 1,
+        primaryPartOfSpeech: 1,
+        usageCount: 1
+      }
+    });
+
+    // Execute aggregation to get random words
+    let randomWords = await Word.aggregate(aggregationPipeline);
+
+    // If we didn't get enough words, try again without the user exclusion
+    if (randomWords.length < count && excludeUserWords) {
+      // Fallback: get random words from all words if not enough unique words
+      const fallbackPipeline = [
+        { $sample: { size: count } },
+        {
+          $project: {
+            _id: 1,
+            word: 1,
+            primaryDefinition: 1,
+            primaryPartOfSpeech: 1,
+            usageCount: 1
+          }
+        }
+      ];
+      
+      const fallbackWords = await Word.aggregate(fallbackPipeline);
+      
+      // Merge with existing results, avoiding duplicates
+      const existingWordIds = new Set(randomWords.map(w => w._id.toString()));
+      const newWords = fallbackWords.filter(w => !existingWordIds.has(w._id.toString()));
+      
+      randomWords = [...randomWords, ...newWords];
+    }
+
+    // Limit to requested count
+    randomWords = randomWords.slice(0, count);
+
+    // Get total available words count for response
+    let totalAvailable;
+    if (excludeUserWords) {
+      totalAvailable = await Word.countDocuments({
+        userIds: { $ne: req.user.id }
+      });
+    } else {
+      totalAvailable = await Word.countDocuments({});
+    }
+
+    if (randomWords.length === 0) {
       return res.status(200).json({
         success: true,
         words: [],
-        totalAvailable: 0
+        totalAvailable: totalAvailable,
+        message: req.t('words.noAvailableWords')
       });
     }
 
-    // Ensure count doesn't exceed available words
-    const requestedCount = Math.min(count, totalWords);
-    
-    if (count > totalWords && !includeAll) {
-      return res.status(400).json({
-        success: false,
-        message: req.t('words.randomWordsLimitExceeded')
-      });
-    }
-
-    // Get random words using aggregation
-    const words = await Word.aggregate([
-      { $match: query },
-      { $sample: { size: requestedCount } },
-      { $project: { word: 1, definition: 1, partOfSpeech: 1, usageCount: 1 } }
-    ]);
+    // Format words for consistency with frontend expectations
+    const formattedWords = randomWords.map(word => ({
+      _id: word._id,
+      word: word.word,
+      definition: word.primaryDefinition || '',
+      partOfSpeech: word.primaryPartOfSpeech || '',
+      usageCount: word.usageCount || 0
+    }));
 
     res.status(200).json({
       success: true,
-      words,
-      totalAvailable: totalWords,
+      words: formattedWords,
+      totalAvailable: totalAvailable,
       requested: count,
-      returned: words.length
+      returned: formattedWords.length
+    });
+  } catch (error) {
+    console.error('Random words error:', error);
+    res.status(500).json({
+      success: false,
+      message: req.t('words.serverErrorRandomWords')
+    });
+  }
+};
+
+// @desc    Get available parts of speech
+// @route   GET /api/words/parts-of-speech
+// @access  Private
+exports.getPartsOfSpeech = async (req, res) => {
+  try {
+    const partsOfSpeech = await Word.distinct('primaryPartOfSpeech', { 
+      userIds: req.user.id,
+      primaryPartOfSpeech: { $ne: null }
+    });
+
+    res.status(200).json({
+      success: true,
+      partsOfSpeech: partsOfSpeech.sort()
     });
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: req.t('words.serverErrorRandomWords')
+      message: req.t('words.serverErrorGettingPartsOfSpeech')
     });
   }
 }; 

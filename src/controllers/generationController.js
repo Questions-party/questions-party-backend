@@ -58,7 +58,7 @@ exports.generateSentence = async (req, res) => {
     await Word.updateMany(
       { 
         word: { $in: words.map(w => w.trim().toLowerCase()) }, 
-        userId: req.user.id 
+        userIds: req.user.id 
       },
       { $inc: { usageCount: 1 } }
     );
