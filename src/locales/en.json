@@ -92,7 +92,11 @@
     "configurationError": "AI configuration error: {{message}}",
     "connectionError": "Unable to connect to AI service",
     "quotaExceeded": "AI service quota exceeded",
-    "rateLimited": "Too many requests to AI service"
+    "rateLimited": "Too many requests to AI service",
+    "formatError": "AI response format is invalid",
+    "retryAttempt": "Retry attempt {{attempt}} of {{max}}",
+    "retryExceeded": "Maximum retry attempts exceeded",
+    "parsingError": "Failed to parse AI response format"
   },
   "apiKey": {
     "title": "AI Configuration",

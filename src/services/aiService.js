@@ -39,6 +39,13 @@ class AIService {
             headers: {'Content-Type': 'application/json'},
             timeout: 30000
         };
+
+        // Response format configuration
+        this.responseFormat = {
+            sentenceMarker: "SENTENCE:",
+            grammarMarker: "GRAMMAR_ANALYSIS:",
+            endMarker: "END_FORMAT"
+        };
     }
 
     /**
@@ -79,9 +86,10 @@ class AIService {
      * @param {Array} words - Array of words to include
      * @param {string} userId - User ID (optional)
      * @param {Array} conversationHistory - Previous messages (optional)
-     * @returns {Object} Generated sentence and explanation
+     * @param {number} maxRetries - Maximum retry attempts (default: 3)
+     * @returns {Object} Generated sentence and explanation with retry info
      */
-    async generateSentence(words, userId = null, conversationHistory = []) {
+    async generateSentence(words, userId = null, conversationHistory = [], maxRetries = 3) {
         // Validate words first
         const cleanedWords = this.validateWords(words);
 
@@ -92,57 +100,198 @@ class AIService {
             throw new Error('No API key available. Please contact administrator or provide your own API key.');
         }
 
-        // Create prompt for SiliconFlow/Qwen
-        const prompt = `You are an English language tutor using the Qwen/QwQ model. Create a single, natural sentence that incorporates ALL of the following words: ${cleanedWords.join(', ')}
+        let attempt = 0;
+        let lastError = null;
+
+        while (attempt < maxRetries) {
+            attempt++;
+            
+            try {
+                // Create structured prompt for consistent output format
+                const prompt = this.createStructuredPrompt(cleanedWords);
+
+                // Prepare request data using configuration
+                const {headers, requestBody} = HttpUtils.prepareRequestData(
+                    aiConfig,
+                    prompt,
+                    conversationHistory
+                );
+
+                // Make HTTP request
+                const response = await axios.post(aiConfig.apiUrl, requestBody, {
+                    headers,
+                    timeout: aiConfig.timeout
+                });
+
+                // Process response using configuration
+                const {content, thinking} = HttpUtils.processAiResponse(
+                    JSON.stringify(response.data),
+                    aiConfig
+                );
+
+                // Parse the structured response
+                const parsedResponse = this.parseStructuredResponse(content);
+
+                if (parsedResponse.isValid) {
+                    return {
+                        sentence: parsedResponse.sentence,
+                        explanation: parsedResponse.grammarAnalysis,
+                        aiModel: aiConfig.model,
+                        thinking: thinking,
+                        rawResponse: response.data,
+                        retryInfo: {
+                            attempt: attempt,
+                            maxRetries: maxRetries,
+                            success: true
+                        }
+                    };
+                } else {
+                    // Invalid format, will retry if attempts remaining
+                    lastError = new Error(`Invalid response format on attempt ${attempt}: ${parsedResponse.error}`);
+                    if (attempt >= maxRetries) {
+                        throw lastError;
+                    }
+                    continue;
+                }
+
+            } catch (error) {
+                lastError = error;
+                
+                // Only retry for format errors, not for API errors
+                if (error.response?.status === 429) {
+                    throw new Error('Rate limit exceeded. Please try again later.');
+                } else if (error.response?.status === 401) {
+                    throw new Error('Invalid API key or authentication failed.');
+                } else if (error.code === 'ECONNABORTED') {
+                    throw new Error('Request timeout. Please try again.');
+                } else if (error.response?.status === 400) {
+                    throw new Error('Invalid request to AI API');
+                } else if (error.message.includes('Invalid response format')) {
+                    // Format error - continue retrying
+                    if (attempt >= maxRetries) {
+                        throw new Error(`Failed to get valid response format after ${maxRetries} attempts. Last error: ${error.message}`);
+                    }
+                    continue;
+                } else {
+                    // Other errors - don't retry
+                    throw new Error(`AI service error: ${error.message}`);
+                }
+            }
+        }
+
+        // If we get here, all retries failed
+        throw lastError || new Error(`Failed to generate sentence after ${maxRetries} attempts`);
+    }
+
+    /**
+     * Create structured prompt with specific format requirements
+     * @param {Array} cleanedWords - Array of cleaned words
+     * @returns {string} Structured prompt
+     */
+    createStructuredPrompt(cleanedWords) {
+        return `You are an English language tutor. Create a single natural sentence that incorporates ALL of the following words: ${cleanedWords.join(', ')}
+
+IMPORTANT: You MUST follow this EXACT output format:
+
+SENTENCE:
+[Write a single, grammatically correct sentence using ALL the provided words naturally]
+
+GRAMMAR_ANALYSIS:
+[Provide detailed grammar explanation covering:
+1. Sentence structure (subject, predicate, objects, etc.)
+2. How each word functions in the sentence
+3. Grammar rules demonstrated
+4. Educational insights about word usage]
+
+END_FORMAT
 
 Requirements:
-1. Use ALL provided words naturally in the sentence
-2. The sentence should be grammatically correct and meaningful
-3. Provide detailed reasoning about your thought process and grammar explanation
-
-Please generate a coherent sentence and explain your reasoning.
+- Use ALL provided words: ${cleanedWords.join(', ')}
+- The sentence must be natural and meaningful
+- Grammar analysis must be detailed and educational
+- Follow the exact format above with the markers
 
 Words to include: ${cleanedWords.join(', ')}`;
+    }
 
+    /**
+     * Parse structured AI response to extract sentence and grammar analysis
+     * @param {string} content - AI response content
+     * @returns {Object} Parsed response with validation
+     */
+    parseStructuredResponse(content) {
         try {
-            // Prepare request data using configuration
-            const {headers, requestBody} = HttpUtils.prepareRequestData(
-                aiConfig,
-                prompt,
-                conversationHistory
-            );
+            const { sentenceMarker, grammarMarker, endMarker } = this.responseFormat;
+            
+            // Check if all required markers are present
+            if (!content.includes(sentenceMarker) || !content.includes(grammarMarker)) {
+                return {
+                    isValid: false,
+                    error: `Missing required format markers. Expected: ${sentenceMarker} and ${grammarMarker}`,
+                    sentence: '',
+                    grammarAnalysis: ''
+                };
+            }
 
-            // Make HTTP request
-            const response = await axios.post(aiConfig.apiUrl, requestBody, {
-                headers,
-                timeout: aiConfig.timeout
-            });
+            // Extract sentence section
+            const sentenceStart = content.indexOf(sentenceMarker) + sentenceMarker.length;
+            const grammarStart = content.indexOf(grammarMarker);
+            
+            if (sentenceStart >= grammarStart) {
+                return {
+                    isValid: false,
+                    error: 'Invalid marker order. SENTENCE must come before GRAMMAR_ANALYSIS',
+                    sentence: '',
+                    grammarAnalysis: ''
+                };
+            }
 
-            // Process response using configuration
-            const {content, thinking} = HttpUtils.processAiResponse(
-                JSON.stringify(response.data),
-                aiConfig
-            );
+            const sentenceSection = content.substring(sentenceStart, grammarStart).trim();
+            
+            // Extract grammar analysis section
+            const grammarAnalysisStart = content.indexOf(grammarMarker) + grammarMarker.length;
+            const endFormatIndex = content.indexOf(endMarker);
+            
+            let grammarSection;
+            if (endFormatIndex !== -1) {
+                grammarSection = content.substring(grammarAnalysisStart, endFormatIndex).trim();
+            } else {
+                grammarSection = content.substring(grammarAnalysisStart).trim();
+            }
+
+            // Validate extracted content
+            if (!sentenceSection || sentenceSection.length < 10) {
+                return {
+                    isValid: false,
+                    error: 'Sentence section is too short or empty',
+                    sentence: '',
+                    grammarAnalysis: ''
+                };
+            }
+
+            if (!grammarSection || grammarSection.length < 20) {
+                return {
+                    isValid: false,
+                    error: 'Grammar analysis section is too short or empty',
+                    sentence: '',
+                    grammarAnalysis: ''
+                };
+            }
 
             return {
-                sentence: content,
-                explanation: thinking || 'Grammar explanation provided by AI',
-                aiModel: aiConfig.model,
-                thinking: thinking,
-                rawResponse: response.data
+                isValid: true,
+                sentence: sentenceSection,
+                grammarAnalysis: grammarSection,
+                error: null
             };
+
         } catch (error) {
-            if (error.response?.status === 429) {
-                throw new Error('Rate limit exceeded. Please try again later.');
-            } else if (error.response?.status === 401) {
-                throw new Error('Invalid API key or authentication failed.');
-            } else if (error.code === 'ECONNABORTED') {
-                throw new Error('Request timeout. Please try again.');
-            } else if (error.response?.status === 400) {
-                throw new Error('Invalid request to AI API');
-            } else {
-                throw new Error(`AI service error: ${error.message}`);
-            }
+            return {
+                isValid: false,
+                error: `Parse error: ${error.message}`,
+                sentence: '',
+                grammarAnalysis: ''
+            };
         }
     }
 

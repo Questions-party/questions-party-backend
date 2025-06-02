@@ -7,7 +7,8 @@ const mongoose = require('mongoose');
 // Validation schemas
 const generateSentenceSchema = Joi.object({
   words: Joi.array().items(Joi.string().min(1).max(50)).min(1).max(20).required(),
-  isPublic: Joi.boolean().default(true)
+  isPublic: Joi.boolean().default(true),
+  maxRetries: Joi.number().integer().min(1).max(10).default(3)
 });
 
 const publicGenerationsSchema = Joi.object({
@@ -30,16 +31,17 @@ exports.generateSentence = async (req, res) => {
       });
     }
 
-    const { words, isPublic } = req.body;
+    const { words, isPublic, maxRetries } = req.body;
 
     // Generate sentence using AI with the Java-inspired service
     let aiResult;
     try {
-      aiResult = await aiService.generateSentence(words, req.user.id);
+      aiResult = await aiService.generateSentence(words, req.user.id, [], maxRetries);
     } catch (aiError) {
       return res.status(500).json({
         success: false,
-        message: req.t('ai.generationFailed', { message: aiError.message })
+        message: req.t('ai.generationFailed', { message: aiError.message }),
+        retryInfo: aiError.retryInfo || null
       });
     }
 
@@ -68,7 +70,8 @@ exports.generateSentence = async (req, res) => {
 
     res.status(201).json({
       success: true,
-      generation
+      generation,
+      retryInfo: aiResult.retryInfo || null
     });
   } catch (error) {
     console.error('Generation error:', error);

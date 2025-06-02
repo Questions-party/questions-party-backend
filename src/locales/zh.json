@@ -90,7 +90,11 @@
     "configurationError": "AI配置错误：{{message}}",
     "connectionError": "无法连接到AI服务",
     "quotaExceeded": "AI服务配额已超限",
-    "rateLimited": "AI服务请求过于频繁"
+    "rateLimited": "AI服务请求过于频繁",
+    "formatError": "AI响应格式无效",
+    "retryAttempt": "重试尝试 {{attempt}} / {{max}}",
+    "retryExceeded": "已超过最大重试次数",
+    "parsingError": "解析AI响应格式失败"
   },
   "apiKey": {
     "title": "AI配置",
