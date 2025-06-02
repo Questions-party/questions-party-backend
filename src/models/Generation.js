@@ -29,6 +29,11 @@ const generationSchema = new mongoose.Schema({
     trim: true,
     maxlength: 2000
   },
+  chineseTranslation: {
+    type: String,
+    trim: true,
+    maxlength: 1000 // Chinese translations are typically shorter
+  },
   thinkingText: {
     type: String,
     trim: true,

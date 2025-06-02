@@ -44,6 +44,7 @@ class AIService {
         this.responseFormat = {
             sentenceMarker: "SENTENCE:",
             grammarMarker: "GRAMMAR_ANALYSIS:",
+            chineseMarker: "CHINESE_TRANSLATION:",
             endMarker: "END_FORMAT"
         };
     }
@@ -87,9 +88,10 @@ class AIService {
      * @param {string} userId - User ID (optional)
      * @param {Array} conversationHistory - Previous messages (optional)
      * @param {number} maxRetries - Maximum retry attempts (default: 3)
+     * @param {string} grammarLanguageOption - Grammar explanation language option ('combined' or 'pure')
      * @returns {Object} Generated sentence and explanation with retry info
      */
-    async generateSentence(words, userId = null, conversationHistory = [], maxRetries = 3) {
+    async generateSentence(words, userId = null, conversationHistory = [], maxRetries = 3, grammarLanguageOption = 'combined') {
         // Validate words first
         const cleanedWords = this.validateWords(words);
 
@@ -108,7 +110,7 @@ class AIService {
             
             try {
                 // Create structured prompt for consistent output format
-                const prompt = this.createStructuredPrompt(cleanedWords);
+                const prompt = this.createStructuredPrompt(cleanedWords, grammarLanguageOption);
 
                 // Prepare request data using configuration
                 const {headers, requestBody} = HttpUtils.prepareRequestData(
@@ -136,6 +138,7 @@ class AIService {
                     return {
                         sentence: parsedResponse.sentence,
                         explanation: parsedResponse.grammarAnalysis,
+                        chineseTranslation: parsedResponse.chineseTranslation,
                         aiModel: aiConfig.model,
                         thinking: thinking,
                         rawResponse: response.data,
@@ -186,10 +189,13 @@ class AIService {
     /**
      * Create structured prompt with specific format requirements
      * @param {Array} cleanedWords - Array of cleaned words
+     * @param {string} grammarLanguageOption - Grammar explanation language option ('combined' or 'pure')
      * @returns {string} Structured prompt
      */
-    createStructuredPrompt(cleanedWords) {
-        return `You are an English language tutor. Create a single natural sentence that incorporates ALL of the following words: ${cleanedWords.join(', ')}
+    createStructuredPrompt(cleanedWords, grammarLanguageOption) {
+        if (grammarLanguageOption === 'combined') {
+            // Combined Chinese and English explanation (default)
+            return `You are an English language tutor. Create a single natural sentence that incorporates ALL of the following words: ${cleanedWords.join(', ')}
 
 IMPORTANT: You MUST follow this EXACT output format:
 
@@ -201,17 +207,55 @@ GRAMMAR_ANALYSIS:
 1. Sentence structure (subject, predicate, objects, etc.)
 2. How each word functions in the sentence
 3. Grammar rules demonstrated
-4. Educational insights about word usage]
+4. Educational insights about word usage
+
+Please provide the explanation in both English and Chinese for better understanding, with key grammar terms explained in both languages.]
+
+CHINESE_TRANSLATION:
+[Provide a natural and accurate Chinese translation of the sentence, maintaining the meaning and context]
 
 END_FORMAT
 
 Requirements:
 - Use ALL provided words: ${cleanedWords.join(', ')}
 - The sentence must be natural and meaningful
-- Grammar analysis must be detailed and educational
+- Grammar analysis must be detailed and educational, provided in both English and Chinese
+- Chinese translation must be accurate and natural
 - Follow the exact format above with the markers
 
 Words to include: ${cleanedWords.join(', ')}`;
+        } else {
+            // Pure English explanation
+            return `You are an English language tutor. Create a single natural sentence that incorporates ALL of the following words: ${cleanedWords.join(', ')}
+
+IMPORTANT: You MUST follow this EXACT output format:
+
+SENTENCE:
+[Write a single, grammatically correct sentence using ALL the provided words naturally]
+
+GRAMMAR_ANALYSIS:
+[Provide detailed grammar explanation covering:
+1. Sentence structure (subject, predicate, objects, etc.)
+2. How each word functions in the sentence
+3. Grammar rules demonstrated
+4. Educational insights about word usage
+
+Please provide the explanation in clear, comprehensive English only.]
+
+CHINESE_TRANSLATION:
+[Provide a natural and accurate Chinese translation of the sentence, maintaining the meaning and context]
+
+END_FORMAT
+
+Requirements:
+- Use ALL provided words: ${cleanedWords.join(', ')}
+- The sentence must be natural and meaningful
+- Grammar analysis must be detailed and educational, provided in English only
+- Chinese translation must be accurate and natural
+- Follow the exact format above with the markers
+
+Words to include: ${cleanedWords.join(', ')}`;
+        }
     }
 
     /**
@@ -221,15 +265,16 @@ Words to include: ${cleanedWords.join(', ')}`;
      */
     parseStructuredResponse(content) {
         try {
-            const { sentenceMarker, grammarMarker, endMarker } = this.responseFormat;
+            const { sentenceMarker, grammarMarker, chineseMarker, endMarker } = this.responseFormat;
             
             // Check if all required markers are present
-            if (!content.includes(sentenceMarker) || !content.includes(grammarMarker)) {
+            if (!content.includes(sentenceMarker) || !content.includes(grammarMarker) || !content.includes(chineseMarker)) {
                 return {
                     isValid: false,
-                    error: `Missing required format markers. Expected: ${sentenceMarker} and ${grammarMarker}`,
+                    error: `Missing required format markers. Expected: ${sentenceMarker}, ${grammarMarker}, and ${chineseMarker}`,
                     sentence: '',
-                    grammarAnalysis: ''
+                    grammarAnalysis: '',
+                    chineseTranslation: ''
                 };
             }
 
@@ -242,7 +287,8 @@ Words to include: ${cleanedWords.join(', ')}`;
                     isValid: false,
                     error: 'Invalid marker order. SENTENCE must come before GRAMMAR_ANALYSIS',
                     sentence: '',
-                    grammarAnalysis: ''
+                    grammarAnalysis: '',
+                    chineseTranslation: ''
                 };
             }
 
@@ -250,13 +296,17 @@ Words to include: ${cleanedWords.join(', ')}`;
             
             // Extract grammar analysis section
             const grammarAnalysisStart = content.indexOf(grammarMarker) + grammarMarker.length;
+            const chineseTranslationStart = content.indexOf(chineseMarker) + chineseMarker.length;
             const endFormatIndex = content.indexOf(endMarker);
             
             let grammarSection;
+            let chineseTranslationSection;
             if (endFormatIndex !== -1) {
-                grammarSection = content.substring(grammarAnalysisStart, endFormatIndex).trim();
+                grammarSection = content.substring(grammarAnalysisStart, content.indexOf(chineseMarker)).trim();
+                chineseTranslationSection = content.substring(chineseTranslationStart, endFormatIndex).trim();
             } else {
-                grammarSection = content.substring(grammarAnalysisStart).trim();
+                grammarSection = content.substring(grammarAnalysisStart, content.indexOf(chineseMarker)).trim();
+                chineseTranslationSection = content.substring(chineseTranslationStart).trim();
             }
 
             // Validate extracted content
@@ -265,7 +315,8 @@ Words to include: ${cleanedWords.join(', ')}`;
                     isValid: false,
                     error: 'Sentence section is too short or empty',
                     sentence: '',
-                    grammarAnalysis: ''
+                    grammarAnalysis: '',
+                    chineseTranslation: ''
                 };
             }
 
@@ -274,7 +325,18 @@ Words to include: ${cleanedWords.join(', ')}`;
                     isValid: false,
                     error: 'Grammar analysis section is too short or empty',
                     sentence: '',
-                    grammarAnalysis: ''
+                    grammarAnalysis: '',
+                    chineseTranslation: ''
+                };
+            }
+
+            if (!chineseTranslationSection || chineseTranslationSection.length < 10) {
+                return {
+                    isValid: false,
+                    error: 'Chinese translation section is too short or empty',
+                    sentence: '',
+                    grammarAnalysis: '',
+                    chineseTranslation: ''
                 };
             }
 
@@ -282,6 +344,7 @@ Words to include: ${cleanedWords.join(', ')}`;
                 isValid: true,
                 sentence: sentenceSection,
                 grammarAnalysis: grammarSection,
+                chineseTranslation: chineseTranslationSection,
                 error: null
             };
 
@@ -290,7 +353,8 @@ Words to include: ${cleanedWords.join(', ')}`;
                 isValid: false,
                 error: `Parse error: ${error.message}`,
                 sentence: '',
-                grammarAnalysis: ''
+                grammarAnalysis: '',
+                chineseTranslation: ''
             };
         }
     }

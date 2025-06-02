@@ -234,6 +234,7 @@ exports.updatePreferences = async (req, res) => {
       theme: Joi.string().valid('light', 'dark'),
       language: Joi.string().valid('en', 'zh'),
       showPublicGenerations: Joi.boolean(),
+      grammarExplanationLanguage: Joi.string().valid('combined', 'pure'),
       fontSettings: Joi.object({
         size: Joi.string().valid('text-xs', 'text-sm', 'text-base', 'text-lg', 'text-xl', 'text-2xl'),
         weight: Joi.string().valid('font-light', 'font-normal', 'font-medium', 'font-semibold', 'font-bold'),

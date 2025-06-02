@@ -50,6 +50,11 @@ const userSchema = new mongoose.Schema({
       type: Boolean,
       default: true
     },
+    grammarExplanationLanguage: {
+      type: String,
+      enum: ['combined', 'pure'],
+      default: 'combined'
+    },
     fontSettings: {
       size: {
         type: String,
