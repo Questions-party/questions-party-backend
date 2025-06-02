@@ -5,6 +5,7 @@ const {
   getMe,
   updateProfile,
   updatePreferences,
+  updateFontSettings,
   updateApiKey,
   testApiKey,
   getApiKeyStatus
@@ -38,6 +39,11 @@ router.put('/profile', authLimiter, auth, updateProfile);
 // @desc    Update user preferences
 // @access  Private (with rate limiting)
 router.put('/preferences', authLimiter, auth, updatePreferences);
+
+// @route   PUT /api/auth/font-settings
+// @desc    Update user font settings
+// @access  Private (with rate limiting)
+router.put('/font-settings', authLimiter, auth, updateFontSettings);
 
 // @route   PUT /api/auth/api-key
 // @desc    Update user's API key

@@ -126,6 +126,8 @@
     "testFailed": "API key test failed. Please check your key and try again.",
     "saveSuccessful": "API key saved successfully!",
     "saveFailed": "Failed to save API key. Please try again.",
-    "existingKeyHint": "You have an existing API key configured. Leave empty to keep current key, or enter a new one to replace it."
+    "existingKeyHint": "You have an existing API key configured. Leave empty to keep current key, or enter a new one to replace it.",
+    "fontSettingsUpdatedSuccessfully": "Font settings updated successfully",
+    "serverErrorUpdatingFontSettings": "Server error updating font settings"
   }
 } 

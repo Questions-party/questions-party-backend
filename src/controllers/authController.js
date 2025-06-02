@@ -233,7 +233,21 @@ exports.updatePreferences = async (req, res) => {
     const preferencesSchema = Joi.object({
       theme: Joi.string().valid('light', 'dark'),
       language: Joi.string().valid('en', 'zh'),
-      showPublicGenerations: Joi.boolean()
+      showPublicGenerations: Joi.boolean(),
+      fontSettings: Joi.object({
+        size: Joi.string().valid('text-xs', 'text-sm', 'text-base', 'text-lg', 'text-xl', 'text-2xl'),
+        weight: Joi.string().valid('font-light', 'font-normal', 'font-medium', 'font-semibold', 'font-bold'),
+        lineHeight: Joi.string().valid('leading-tight', 'leading-normal', 'leading-relaxed', 'leading-loose'),
+        family: Joi.string().valid('font-sans', 'font-serif', 'font-mono'),
+        color: Joi.string().valid(
+          'text-gray-700 dark:text-gray-300',
+          'text-gray-900 dark:text-gray-100', 
+          'text-blue-700 dark:text-blue-300',
+          'text-green-700 dark:text-green-300',
+          'text-purple-700 dark:text-purple-300',
+          'text-red-700 dark:text-red-300'
+        )
+      })
     });
 
     const { error } = preferencesSchema.validate(req.body);
@@ -258,6 +272,60 @@ exports.updatePreferences = async (req, res) => {
     res.status(500).json({
       success: false,
       message: req.t('auth.serverErrorUpdatingPreferences')
+    });
+  }
+};
+
+// @desc    Update user font settings only
+// @route   PUT /api/auth/font-settings
+// @access  Private
+exports.updateFontSettings = async (req, res) => {
+  try {
+    const fontSettingsSchema = Joi.object({
+      size: Joi.string().valid('text-xs', 'text-sm', 'text-base', 'text-lg', 'text-xl', 'text-2xl'),
+      weight: Joi.string().valid('font-light', 'font-normal', 'font-medium', 'font-semibold', 'font-bold'),
+      lineHeight: Joi.string().valid('leading-tight', 'leading-normal', 'leading-relaxed', 'leading-loose'),
+      family: Joi.string().valid('font-sans', 'font-serif', 'font-mono'),
+      color: Joi.string().valid(
+        'text-gray-700 dark:text-gray-300',
+        'text-gray-900 dark:text-gray-100', 
+        'text-blue-700 dark:text-blue-300',
+        'text-green-700 dark:text-green-300',
+        'text-purple-700 dark:text-purple-300',
+        'text-red-700 dark:text-red-300'
+      )
+    });
+
+    const { error } = fontSettingsSchema.validate(req.body);
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        message: error.details[0].message
+      });
+    }
+
+    const user = await User.findByIdAndUpdate(
+      req.user.id,
+      { 
+        $set: { 
+          'preferences.fontSettings': { 
+            ...req.user.preferences.fontSettings, 
+            ...req.body 
+          } 
+        } 
+      },
+      { new: true, runValidators: true }
+    );
+
+    res.status(200).json({
+      success: true,
+      fontSettings: user.preferences.fontSettings,
+      message: req.t('auth.fontSettingsUpdatedSuccessfully')
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: req.t('auth.serverErrorUpdatingFontSettings')
     });
   }
 };

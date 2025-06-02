@@ -49,6 +49,40 @@ const userSchema = new mongoose.Schema({
     showPublicGenerations: {
       type: Boolean,
       default: true
+    },
+    fontSettings: {
+      size: {
+        type: String,
+        enum: ['text-xs', 'text-sm', 'text-base', 'text-lg', 'text-xl', 'text-2xl'],
+        default: 'text-base'
+      },
+      weight: {
+        type: String,
+        enum: ['font-light', 'font-normal', 'font-medium', 'font-semibold', 'font-bold'],
+        default: 'font-normal'
+      },
+      lineHeight: {
+        type: String,
+        enum: ['leading-tight', 'leading-normal', 'leading-relaxed', 'leading-loose'],
+        default: 'leading-relaxed'
+      },
+      family: {
+        type: String,
+        enum: ['font-sans', 'font-serif', 'font-mono'],
+        default: 'font-sans'
+      },
+      color: {
+        type: String,
+        enum: [
+          'text-gray-700 dark:text-gray-300',
+          'text-gray-900 dark:text-gray-100', 
+          'text-blue-700 dark:text-blue-300',
+          'text-green-700 dark:text-green-300',
+          'text-purple-700 dark:text-purple-300',
+          'text-red-700 dark:text-red-300'
+        ],
+        default: 'text-gray-700 dark:text-gray-300'
+      }
     }
   }
 }, {
@@ -96,10 +130,11 @@ userSchema.methods.encryptApiKey = function(plaintext) {
     let encrypted = cipher.update(plaintext, 'utf8');
     encrypted = Buffer.concat([encrypted, cipher.final()]);
     
-    // Combine salt + iv + encrypted data
+    // Combine salt + iv + encrypted data (FIXED: now includes IV)
     const result = Buffer.concat([
       Buffer.from('Salted__', 'utf8'),
       salt,
+      iv,
       encrypted
     ]);
     
@@ -124,17 +159,15 @@ userSchema.methods.decryptApiKey = function(encryptedKey = null) {
     // Remove 'enc:' prefix and decode base64
     const cipherData = Buffer.from(keyToDecrypt.substring(4), 'base64');
     
-    // Extract salt (after "Salted__")
-    const salt = cipherData.slice(8, 16);
-    const encrypted = cipherData.slice(16);
+    // Extract salt and IV (FIXED: now extracts IV from stored data)
+    const salt = cipherData.slice(8, 16);   // Salt: bytes 8-15
+    const iv = cipherData.slice(16, 32);    // IV: bytes 16-31
+    const encrypted = cipherData.slice(32); // Encrypted data: bytes 32+
     
     // Derive key using PBKDF2
     const key = crypto.pbkdf2Sync(secretKey, salt, 10000, 32, 'md5');
     
-    // For AES-256-CBC, we need to derive IV from the key and salt
-    const iv = crypto.pbkdf2Sync(secretKey, salt, 10000, 16, 'md5');
-    
-    // Create decipher
+    // Create decipher using the extracted IV
     const decipher = crypto.createDecipheriv(algorithm, key, iv);
     let decrypted = decipher.update(encrypted);
     decrypted = Buffer.concat([decrypted, decipher.final()]);

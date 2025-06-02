@@ -18,7 +18,9 @@
     "serverError": "服务器错误",
     "apiKeyValidationSuccessful": "API密钥验证成功",
     "apiKeyValidationFailed": "API密钥验证失败：{{error}}",
-    "apiKeyDecryptionFailed": "API密钥解密失败"
+    "apiKeyDecryptionFailed": "API密钥解密失败",
+    "fontSettingsUpdatedSuccessfully": "字体设置更新成功",
+    "serverErrorUpdatingFontSettings": "更新字体设置时服务器错误"
   },
   "words": {
     "serverErrorFetchingWords": "获取单词时出现服务器错误",
@@ -124,6 +126,8 @@
     "testFailed": "API密钥测试失败。请检查您的密钥并重试。",
     "saveSuccessful": "API密钥保存成功！",
     "saveFailed": "保存API密钥失败。请重试。",
-    "existingKeyHint": "您已配置了现有的API密钥。留空以保留当前密钥，或输入新密钥进行替换。"
+    "existingKeyHint": "您已配置了现有的API密钥。留空以保留当前密钥，或输入新密钥进行替换。",
+    "fontSettingsUpdatedSuccessfully": "字体设置更新成功",
+    "serverErrorUpdatingFontSettings": "更新字体设置时服务器错误"
   }
 } 
