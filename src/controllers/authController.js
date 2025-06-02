@@ -260,4 +260,130 @@ exports.updatePreferences = async (req, res) => {
       message: req.t('auth.serverErrorUpdatingPreferences')
     });
   }
+};
+
+// @desc    Update user's API key
+// @route   PUT /api/auth/api-key
+// @access  Private
+exports.updateApiKey = async (req, res) => {
+  try {
+    const { apiKey, useCustomApiKey } = req.body;
+
+    // Validate input - only require apiKey if useCustomApiKey is true AND apiKey is provided
+    // Allow setting useCustomApiKey = true with empty apiKey (user intends to use custom key but hasn't entered it yet)
+    if (useCustomApiKey && apiKey && apiKey.trim().length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: req.t('auth.apiKeyRequired')
+      });
+    }
+
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: req.t('auth.userNotFound')
+      });
+    }
+
+    // Update user's API key settings
+    if (useCustomApiKey) {
+      // If apiKey is provided and not empty, encrypt and store it
+      // If apiKey is empty or not provided, just set the flag but keep apiKey undefined
+      if (apiKey && apiKey.trim().length > 0) {
+        user.apiKey = apiKey.trim();
+      } else {
+        user.apiKey = undefined;
+      }
+      user.useCustomApiKey = true;
+    } else {
+      user.apiKey = undefined;
+      user.useCustomApiKey = false;
+    }
+
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: req.t('auth.apiKeyUpdatedSuccessfully'),
+      useCustomApiKey: user.useCustomApiKey
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: req.t('auth.serverError')
+    });
+  }
+};
+
+// @desc    Test user's API key
+// @route   POST /api/auth/test-api-key
+// @access  Private
+exports.testApiKey = async (req, res) => {
+  try {
+    const { apiKey } = req.body;
+
+    if (!apiKey || apiKey.trim().length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: req.t('auth.apiKeyRequired')
+      });
+    }
+
+    // Test the API key using AI service
+    // Note: apiKey here is plaintext from frontend, testApiKey method expects plaintext
+    const aiService = require('../services/aiService');
+    const testResult = await aiService.testApiKey(apiKey.trim());
+
+    if (testResult.success) {
+      res.status(200).json({
+        success: true,
+        message: req.t('auth.apiKeyValidationSuccessful'),
+        testResult
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        message: req.t('auth.apiKeyValidationFailed', { error: testResult.error }),
+        testResult
+      });
+    }
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: req.t('auth.serverError')
+    });
+  }
+};
+
+// @desc    Get API key status
+// @route   GET /api/auth/api-key-status
+// @access  Private
+exports.getApiKeyStatus = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).select('useCustomApiKey apiKey');
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: req.t('auth.userNotFound')
+      });
+    }
+
+    // Get platform configuration info
+    const aiService = require('../services/aiService');
+    const platformInfo = aiService.getPlatformConfigInfo();
+
+    res.status(200).json({
+      success: true,
+      useCustomApiKey: user.useCustomApiKey,
+      hasCustomApiKey: !!(user.useCustomApiKey && user.apiKey),
+      platformInfo
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: req.t('auth.serverError')
+    });
+  }
 }; 

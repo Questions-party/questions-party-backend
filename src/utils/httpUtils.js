@@ -198,31 +198,33 @@ class HttpUtils {
    */
   static decryptApiKey(encryptedApiKey, secretKey) {
     try {
-      // CryptoJS uses OpenSSL format which includes salt
+      // CryptoJS format: Base64 encoded with "Salted__" prefix + 8 byte salt + ciphertext
       const cipherData = Buffer.from(encryptedApiKey, 'base64');
       
-      // CryptoJS format: "Salted__" + 8 byte salt + actual ciphertext
+      // Extract salt and ciphertext (skip first 8 bytes for "Salted__")
       const saltBytes = cipherData.slice(8, 16);
       const cipherBytes = cipherData.slice(16);
       
       // Generate key and IV using OpenSSL EVP_BytesToKey derivation
       const { key, iv } = this.evpBytesToKey(secretKey, saltBytes);
       
+      // Decrypt using AES-256-CBC
       const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
       let decrypted = decipher.update(cipherBytes);
       decrypted = Buffer.concat([decrypted, decipher.final()]);
       
       return decrypted.toString('utf8');
     } catch (error) {
-      throw new Error(`Decryption failed: ${error.message}`);
+      throw new Error(`Failed to decrypt API key: ${error.message}`);
     }
   }
 
   /**
    * Implementation of OpenSSL's EVP_BytesToKey key derivation function
-   * @param {string} password - The password
+   * Compatible with CryptoJS key derivation
+   * @param {string} password - The password to derive from
    * @param {Buffer} salt - The salt bytes
-   * @returns {Object} Object containing key and iv
+   * @returns {Object} Object containing key and IV buffers
    */
   static evpBytesToKey(password, salt) {
     const keyLen = 32; // 256 bits
@@ -246,6 +248,69 @@ class HttpUtils {
       key: derivedBytes.slice(0, keyLen),
       iv: derivedBytes.slice(keyLen, keyLen + ivLen)
     };
+  }
+
+  /**
+   * Make HTTP POST request with proper error handling
+   * @param {string} url - The URL to post to
+   * @param {Object} headers - Request headers
+   * @param {Object} requestBody - Request body
+   * @param {number} timeout - Request timeout in ms
+   * @returns {string} Response body as string
+   */
+  static async post(url, headers, requestBody, timeout = 30000) {
+    const axios = require('axios');
+    
+    try {
+      const response = await axios.post(url, requestBody, {
+        headers,
+        timeout
+      });
+      
+      return JSON.stringify(response.data);
+    } catch (error) {
+      if (error.response) {
+        // HTTP error response
+        throw new Error(`HTTP ${error.response.status}: ${error.response.statusText}`);
+      } else if (error.code === 'ECONNABORTED') {
+        // Timeout
+        throw new Error('Request timeout');
+      } else {
+        // Network or other error
+        throw new Error(`Network error: ${error.message}`);
+      }
+    }
+  }
+
+  /**
+   * Make HTTP GET request with proper error handling
+   * @param {string} url - The URL to get from
+   * @param {Object} headers - Request headers
+   * @param {number} timeout - Request timeout in ms
+   * @returns {string} Response body as string
+   */
+  static async get(url, headers, timeout = 30000) {
+    const axios = require('axios');
+    
+    try {
+      const response = await axios.get(url, {
+        headers,
+        timeout
+      });
+      
+      return JSON.stringify(response.data);
+    } catch (error) {
+      if (error.response) {
+        // HTTP error response
+        throw new Error(`HTTP ${error.response.status}: ${error.response.statusText}`);
+      } else if (error.code === 'ECONNABORTED') {
+        // Timeout
+        throw new Error('Request timeout');
+      } else {
+        // Network or other error
+        throw new Error(`Network error: ${error.message}`);
+      }
+    }
   }
 }
 

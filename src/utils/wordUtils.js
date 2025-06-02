@@ -1,5 +1,5 @@
 const Typo = require('typo-js');
-const WordNet = require('wordnet');
+const wordnet = require('wordnet');
 
 // Initialize the spell checker
 let spellChecker;
@@ -10,12 +10,18 @@ try {
 }
 
 // Initialize WordNet
-let wordnet;
-try {
-  wordnet = new WordNet();
-} catch (error) {
-  console.error('Failed to initialize WordNet:', error);
-}
+let wordnetInitialized = false;
+const initializeWordNet = async () => {
+  if (!wordnetInitialized) {
+    try {
+      await wordnet.init();
+      wordnetInitialized = true;
+      console.log('WordNet initialized successfully');
+    } catch (error) {
+      console.error('Failed to initialize WordNet:', error);
+    }
+  }
+};
 
 /**
  * Check if a word is spelled correctly
@@ -62,60 +68,69 @@ const getSpellingSuggestions = (word) => {
  * @returns {Promise<Object>} - Object containing definitions and primary info
  */
 const getWordNetData = async (word) => {
-  return new Promise((resolve) => {
-    if (!wordnet) {
+  try {
+    // Ensure WordNet is initialized
+    await initializeWordNet();
+    
+    if (!wordnetInitialized) {
       console.warn('WordNet not available');
-      resolve({
+      return {
         definitions: [],
         primaryDefinition: null,
         primaryPartOfSpeech: null,
         wordNetProcessed: false
-      });
-      return;
+      };
     }
 
+    const cleanWord = word.toLowerCase().trim();
+    
     try {
-      const cleanWord = word.toLowerCase().trim();
+      const definitions = await wordnet.lookup(cleanWord);
       
-      wordnet.lookup(cleanWord, (err, definitions) => {
-        if (err || !definitions || definitions.length === 0) {
-          console.log(`No WordNet data found for: ${cleanWord}`);
-          resolve({
-            definitions: [],
-            primaryDefinition: null,
-            primaryPartOfSpeech: null,
-            wordNetProcessed: true
-          });
-          return;
-        }
-
-        // Process WordNet definitions
-        const processedDefinitions = definitions.map(def => ({
-          text: def.def || def.gloss || '',
-          partOfSpeech: mapWordNetPoS(def.pos)
-        })).filter(def => def.text && def.partOfSpeech);
-
-        // Get primary (first/most common) definition and part of speech
-        const primaryDefinition = processedDefinitions.length > 0 ? processedDefinitions[0].text : null;
-        const primaryPartOfSpeech = processedDefinitions.length > 0 ? processedDefinitions[0].partOfSpeech : null;
-
-        resolve({
-          definitions: processedDefinitions.slice(0, 10), // Limit to 10 definitions
-          primaryDefinition,
-          primaryPartOfSpeech,
+      if (!definitions || definitions.length === 0) {
+        console.log(`No WordNet data found for: ${cleanWord}`);
+        return {
+          definitions: [],
+          primaryDefinition: null,
+          primaryPartOfSpeech: null,
           wordNetProcessed: true
-        });
-      });
-    } catch (error) {
-      console.error('Error looking up word in WordNet:', error);
-      resolve({
+        };
+      }
+
+      // Process WordNet definitions
+      const processedDefinitions = definitions.map(def => ({
+        text: def.glossary || def.gloss || '',
+        partOfSpeech: mapWordNetPoS(def.meta?.synsetType)
+      })).filter(def => def.text && def.partOfSpeech);
+
+      // Get primary (first/most common) definition and part of speech
+      const primaryDefinition = processedDefinitions.length > 0 ? processedDefinitions[0].text : null;
+      const primaryPartOfSpeech = processedDefinitions.length > 0 ? processedDefinitions[0].partOfSpeech : null;
+
+      return {
+        definitions: processedDefinitions.slice(0, 10), // Limit to 10 definitions
+        primaryDefinition,
+        primaryPartOfSpeech,
+        wordNetProcessed: true
+      };
+    } catch (lookupError) {
+      console.error('Error looking up word in WordNet:', lookupError);
+      return {
         definitions: [],
         primaryDefinition: null,
         primaryPartOfSpeech: null,
         wordNetProcessed: true
-      });
+      };
     }
-  });
+  } catch (error) {
+    console.error('Error in getWordNetData:', error);
+    return {
+      definitions: [],
+      primaryDefinition: null,
+      primaryPartOfSpeech: null,
+      wordNetProcessed: false
+    };
+  }
 };
 
 /**
@@ -124,15 +139,21 @@ const getWordNetData = async (word) => {
  * @returns {string|null} - Mapped part of speech or null if not supported
  */
 const mapWordNetPoS = (wordnetPos) => {
+  if (!wordnetPos) return null;
+  
   const mapping = {
+    'noun': 'noun',
+    'verb': 'verb',
+    'adjective': 'adjective',
+    'adverb': 'adverb',
     'n': 'noun',
     'v': 'verb',
     'a': 'adjective',
-    's': 'adjective satellite',
+    's': 'adjective', // adjective satellite
     'r': 'adverb'
   };
 
-  return mapping[wordnetPos] || null;
+  return mapping[wordnetPos.toLowerCase()] || null;
 };
 
 /**

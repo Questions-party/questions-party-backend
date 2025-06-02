@@ -11,7 +11,14 @@
     "notAuthorized": "Not authorized, no token provided",
     "notAuthorizedUserNotFound": "Not authorized, user not found",
     "notAuthorizedTokenFailed": "Not authorized, token failed",
-    "serverErrorAuthentication": "Server error in authentication"
+    "serverErrorAuthentication": "Server error in authentication",
+    "apiKeyRequired": "API key is required",
+    "userNotFound": "User not found",
+    "apiKeyUpdatedSuccessfully": "API key updated successfully",
+    "serverError": "Server error occurred",
+    "apiKeyValidationSuccessful": "API key validation successful",
+    "apiKeyValidationFailed": "API key validation failed: {{error}}",
+    "apiKeyDecryptionFailed": "Failed to decrypt API key"
   },
   "words": {
     "serverErrorFetchingWords": "Server error fetching words",
@@ -86,5 +93,35 @@
     "connectionError": "Unable to connect to AI service",
     "quotaExceeded": "AI service quota exceeded",
     "rateLimited": "Too many requests to AI service"
+  },
+  "apiKey": {
+    "title": "AI Configuration",
+    "subtitle": "Configure your AI service settings to customize your experience. You can use our platform's API key or configure your own.",
+    "platformConfiguration": "Platform Configuration",
+    "platformDescription": "Our platform is currently configured with the following AI service setup:",
+    "provider": "Provider",
+    "model": "Model",
+    "features": "Features",
+    "configuration": "API Key Configuration",
+    "loadingConfiguration": "Loading configuration...",
+    "usePlatformKey": "Use Platform API Key",
+    "platformKeyDescription": "Use our pre-configured API key for seamless experience. No setup required.",
+    "recommended": "Recommended",
+    "useCustomKey": "Use Custom API Key",
+    "customKeyDescription": "Use your own API key for more control and potentially higher usage limits.",
+    "enterYourKey": "Enter your API key",
+    "keyPlaceholder": "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "testKey": "Test Key",
+    "saveKey": "Save Key",
+    "securityNote": "Your API key will be encrypted and stored securely.",
+    "currentStatus": "Current Configuration Status",
+    "usingPlatformKey": "Using platform API key",
+    "usingCustomKey": "Using custom API key",
+    "customKeyNotSet": "Custom API key not configured yet",
+    "testSuccessful": "API key test successful! The key is working correctly.",
+    "testFailed": "API key test failed. Please check your key and try again.",
+    "saveSuccessful": "API key saved successfully!",
+    "saveFailed": "Failed to save API key. Please try again.",
+    "existingKeyHint": "You have an existing API key configured. Leave empty to keep current key, or enter a new one to replace it."
   }
 } 

@@ -12,7 +12,7 @@ module.exports = {
   openaiApiKey: process.env.OPENAI_API_KEY,
   nodeEnv: process.env.NODE_ENV || 'development',
   frontendUrl: process.env.FRONTEND_URL || 'http://localhost:3000',
-  rateLimitWindowMs: 15 * 60 * 1000, // 15 minutes
+  rateLimitWindowMs: 2 * 60 * 1000, // 2 minutes
   rateLimitMax: 100, // limit each IP to 100 requests per windowMs
   rateLimitMaxPublic: 200, // higher limit for public content access
   aiRateLimitMax: 10, // limit AI requests to 10 per windowMs

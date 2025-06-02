@@ -11,7 +11,14 @@
     "notAuthorized": "未授权，未提供令牌",
     "notAuthorizedUserNotFound": "未授权，用户未找到",
     "notAuthorizedTokenFailed": "未授权，令牌验证失败",
-    "serverErrorAuthentication": "身份验证时出现服务器错误"
+    "serverErrorAuthentication": "身份验证时出现服务器错误",
+    "apiKeyRequired": "需要提供API密钥",
+    "userNotFound": "未找到用户",
+    "apiKeyUpdatedSuccessfully": "API密钥更新成功",
+    "serverError": "服务器错误",
+    "apiKeyValidationSuccessful": "API密钥验证成功",
+    "apiKeyValidationFailed": "API密钥验证失败：{{error}}",
+    "apiKeyDecryptionFailed": "API密钥解密失败"
   },
   "words": {
     "serverErrorFetchingWords": "获取单词时出现服务器错误",
@@ -84,5 +91,35 @@
     "connectionError": "无法连接到AI服务",
     "quotaExceeded": "AI服务配额已超限",
     "rateLimited": "AI服务请求过于频繁"
+  },
+  "apiKey": {
+    "title": "AI配置",
+    "subtitle": "配置您的AI服务设置以自定义您的体验。您可以使用我们平台的API密钥或配置您自己的密钥。",
+    "platformConfiguration": "平台配置",
+    "platformDescription": "我们的平台当前配置了以下AI服务设置：",
+    "provider": "服务提供商",
+    "model": "模型",
+    "features": "功能特性",
+    "configuration": "API密钥配置",
+    "loadingConfiguration": "正在加载配置...",
+    "usePlatformKey": "使用平台API密钥",
+    "platformKeyDescription": "使用我们预配置的API密钥，享受无缝体验，无需设置。",
+    "recommended": "推荐",
+    "useCustomKey": "使用自定义API密钥",
+    "customKeyDescription": "使用您自己的API密钥获得更多控制权和更高的使用限额。",
+    "enterYourKey": "输入您的API密钥",
+    "keyPlaceholder": "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "testKey": "测试密钥",
+    "saveKey": "保存密钥",
+    "securityNote": "您的API密钥将被加密并安全存储。",
+    "currentStatus": "当前配置状态",
+    "usingPlatformKey": "正在使用平台API密钥",
+    "usingCustomKey": "正在使用自定义API密钥",
+    "customKeyNotSet": "尚未配置自定义API密钥",
+    "testSuccessful": "API密钥测试成功！密钥工作正常。",
+    "testFailed": "API密钥测试失败。请检查您的密钥并重试。",
+    "saveSuccessful": "API密钥保存成功！",
+    "saveFailed": "保存API密钥失败。请重试。",
+    "existingKeyHint": "您已配置了现有的API密钥。留空以保留当前密钥，或输入新密钥进行替换。"
   }
 } 

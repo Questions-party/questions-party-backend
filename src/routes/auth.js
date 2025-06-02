@@ -4,7 +4,10 @@ const {
   login,
   getMe,
   updateProfile,
-  updatePreferences
+  updatePreferences,
+  updateApiKey,
+  testApiKey,
+  getApiKeyStatus
 } = require('../controllers/authController');
 const { auth } = require('../middleware/auth');
 const { authLimiter } = require('../middleware/rateLimiter');
@@ -35,5 +38,20 @@ router.put('/profile', authLimiter, auth, updateProfile);
 // @desc    Update user preferences
 // @access  Private (with rate limiting)
 router.put('/preferences', authLimiter, auth, updatePreferences);
+
+// @route   PUT /api/auth/api-key
+// @desc    Update user's API key
+// @access  Private (with rate limiting)
+router.put('/api-key', authLimiter, auth, updateApiKey);
+
+// @route   POST /api/auth/test-api-key
+// @desc    Test user's API key
+// @access  Private (with rate limiting)
+router.post('/test-api-key', authLimiter, auth, testApiKey);
+
+// @route   GET /api/auth/api-key-status
+// @desc    Get API key status and platform info
+// @access  Private (with rate limiting)
+router.get('/api-key-status', authLimiter, auth, getApiKeyStatus);
 
 module.exports = router; 

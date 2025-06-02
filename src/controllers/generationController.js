@@ -32,7 +32,7 @@ exports.generateSentence = async (req, res) => {
 
     const { words, isPublic } = req.body;
 
-    // Generate sentence using AI with new service
+    // Generate sentence using AI with the Java-inspired service
     let aiResult;
     try {
       aiResult = await aiService.generateSentence(words, req.user.id);
