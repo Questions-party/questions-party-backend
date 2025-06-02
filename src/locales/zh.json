@@ -54,6 +54,23 @@
     "serverErrorUnlikingGeneration": "取消点赞时出现服务器错误",
     "serverErrorGettingStats": "获取生成统计时出现服务器错误"
   },
+  "sentenceCheck": {
+    "serverErrorCheckingSentence": "检查句子时出现服务器错误",
+    "serverErrorFetchingChecks": "获取句子检查结果时出现服务器错误",
+    "checkNotFound": "未找到句子检查结果",
+    "serverErrorUpdatingCheck": "更新句子检查结果时出现服务器错误",
+    "checkDeletedSuccessfully": "句子检查结果删除成功",
+    "serverErrorDeletingCheck": "删除句子检查结果时出现服务器错误",
+    "allChecksDeletedSuccessfully": "所有句子检查结果删除成功",
+    "serverErrorDeletingAllChecks": "删除所有句子检查结果时出现服务器错误",
+    "alreadyLiked": "您已经点赞过此句子检查结果",
+    "likedSuccessfully": "句子检查结果点赞成功",
+    "serverErrorLikingCheck": "点赞句子检查结果时出现服务器错误",
+    "notLiked": "您尚未点赞此句子检查结果",
+    "unlikedSuccessfully": "取消点赞成功",
+    "serverErrorUnlikingCheck": "取消点赞时出现服务器错误",
+    "serverErrorGettingStats": "获取句子检查统计时出现服务器错误"
+  },
   "aiConfig": {
     "serverErrorFetchingConfigs": "获取AI配置时出现服务器错误",
     "configNotFound": "未找到AI配置",
@@ -89,6 +106,7 @@
   },
   "ai": {
     "generationFailed": "AI生成失败：{{message}}",
+    "checkFailed": "AI句子检查失败：{{message}}",
     "configurationError": "AI配置错误：{{message}}",
     "connectionError": "无法连接到AI服务",
     "quotaExceeded": "AI服务配额已超限",
@@ -96,7 +114,16 @@
     "formatError": "AI响应格式无效",
     "retryAttempt": "重试尝试 {{attempt}} / {{max}}",
     "retryExceeded": "已超过最大重试次数",
-    "parsingError": "解析AI响应格式失败"
+    "parsingError": "解析AI响应格式失败",
+    "missingFormatMarkers": "缺少必需的格式标记。预期：{{markers}}",
+    "invalidMarkerOrder": "标记顺序无效。{{expected}}",
+    "sentenceSectionTooShort": "句子部分过短或为空",
+    "grammarAnalysisTooShort": "语法分析部分过短或为空",
+    "chineseTranslationTooShort": "中文翻译部分过短或为空",
+    "grammarCorrectionTooShort": "语法修正部分过短或为空",
+    "keywordAnalysisTooShort": "关键词分析部分过短或为空",
+    "chineseDefinitionTooShort": "中文定义部分过短或为空",
+    "parseError": "解析错误：{{message}}"
   },
   "apiKey": {
     "title": "AI配置",

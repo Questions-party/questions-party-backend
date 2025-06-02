@@ -44,6 +44,8 @@ const authRoutes = require('./src/routes/auth');
 const wordRoutes = require('./src/routes/words');
 const generationRoutes = require('./src/routes/generations');
 const publicGenerationRoutes = require('./src/routes/publicGenerations');
+const sentenceCheckRoutes = require('./src/routes/sentenceChecks');
+const publicSentenceCheckRoutes = require('./src/routes/publicSentenceChecks');
 const statisticsRoutes = require('./src/routes/statistics');
 
 // Mount auth routes with authentication rate limiting
@@ -59,11 +61,20 @@ app.use('/api/generate', aiLimiter, generationRoutes);
 // Public generation routes with higher rate limits (no auth required)
 app.use('/api/generations/public', publicContentLimiter, publicGenerationRoutes);
 
+// Public sentence check routes with higher rate limits (no auth required)
+app.use('/api/checks/public', publicContentLimiter, publicSentenceCheckRoutes);
+
 // Statistics routes (no auth required)
 app.use('/api/statistics', publicContentLimiter, statisticsRoutes);
 
 // Other generation routes with general API rate limiting
 app.use('/api/generations', apiLimiter, generationRoutes);
+
+// AI sentence check route with strict rate limiting (requires auth) - for POST /api/check
+app.use('/api/check', aiLimiter, sentenceCheckRoutes);
+
+// Other sentence check routes with general API rate limiting - for /api/checks/*
+app.use('/api/checks', apiLimiter, sentenceCheckRoutes);
 
 // Internationalization info endpoint
 app.get('/api/i18n', (req, res) => {

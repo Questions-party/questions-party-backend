@@ -1,31 +1,30 @@
-const Generation = require('../models/Generation');
-const Word = require('../models/Word');
+const SentenceCheck = require('../models/SentenceCheck');
 const aiService = require('../services/aiService');
 const Joi = require('joi');
 const mongoose = require('mongoose');
 const User = require('../models/User');
 
 // Validation schemas
-const generateSentenceSchema = Joi.object({
-  words: Joi.array().items(Joi.string().min(1).max(50)).min(1).max(20).required(),
+const checkSentenceSchema = Joi.object({
+  sentence: Joi.string().min(1).max(800).required(),
   isPublic: Joi.boolean().default(true),
   maxRetries: Joi.number().integer().min(1).max(10).default(3),
   grammarLanguage: Joi.string().valid('combined', 'pure').default('combined')
 });
 
-const publicGenerationsSchema = Joi.object({
+const publicChecksSchema = Joi.object({
   page: Joi.number().integer().min(1).default(1),
   limit: Joi.number().integer().min(1).max(50).default(10),
   sortBy: Joi.string().valid('recent', 'liked', 'trending').default('recent')
 });
 
-// @desc    Generate sentence with AI
-// @route   POST /api/generate
+// @desc    Check sentence with AI
+// @route   POST /api/check
 // @access  Private
-exports.generateSentence = async (req, res) => {
+exports.checkSentence = async (req, res) => {
   try {
     // Validate input
-    const { error } = generateSentenceSchema.validate(req.body);
+    const { error } = checkSentenceSchema.validate(req.body);
     if (error) {
       return res.status(400).json({
         success: false,
@@ -33,66 +32,59 @@ exports.generateSentence = async (req, res) => {
       });
     }
 
-    const { words, isPublic, maxRetries, grammarLanguage } = req.body;
+    const { sentence, isPublic, maxRetries, grammarLanguage } = req.body;
 
     // Get user's grammar explanation language preference (fallback to request body or default)
     const user = await User.findById(req.user.id).select('preferences.grammarExplanationLanguage');
     const grammarLanguageOption = grammarLanguage || user?.preferences?.grammarExplanationLanguage || 'combined';
 
-    // Generate sentence using AI with the Java-inspired service
+    // Check sentence using AI
     let aiResult;
     try {
-      aiResult = await aiService.generateSentence(words, req.user.id, [], maxRetries, grammarLanguageOption, req.locale);
+      aiResult = await aiService.checkSentence(sentence, req.user.id, maxRetries, grammarLanguageOption, req.locale);
     } catch (aiError) {
       return res.status(500).json({
         success: false,
-        message: req.t('ai.generationFailed', { message: aiError.message }),
+        message: req.t('ai.checkFailed', { message: aiError.message }),
         retryInfo: aiError.retryInfo || null
       });
     }
 
-    // Save generation to database
-    const generation = await Generation.create({
+    // Save sentence check to database
+    const sentenceCheck = await SentenceCheck.create({
       userId: req.user.id,
-      words: words.map(word => word.trim().toLowerCase()),
-      sentence: aiResult.sentence,
-      explanation: aiResult.explanation,
-      chineseTranslation: aiResult.chineseTranslation,
-      thinkingText: aiResult.thinking, // Support for QwQ reasoning
-      isPublic: isPublic !== false, // default to true if not specified
-      aiModel: aiResult.aiModel || 'Qwen/QwQ-32B'
+      originalSentence: sentence.trim(),
+      grammarAnalysis: aiResult.grammarAnalysis,
+      grammarCorrection: aiResult.grammarCorrection,
+      keywordAnalysis: aiResult.keywordAnalysis,
+      chineseDefinition: aiResult.chineseDefinition,
+      thinkingText: aiResult.thinking,
+      isPublic: isPublic !== false,
+      aiModel: aiResult.aiModel || 'Qwen/QwQ-32B',
+      grammarLanguageOption: grammarLanguageOption
     });
 
-    // Update word usage counts for user's words
-    await Word.updateMany(
-      { 
-        word: { $in: words.map(w => w.trim().toLowerCase()) }, 
-        userIds: req.user.id 
-      },
-      { $inc: { usageCount: 1 } }
-    );
-
     // Populate user info for response
-    await generation.populate('userId', 'username');
+    await sentenceCheck.populate('userId', 'username');
 
     res.status(201).json({
       success: true,
-      generation,
+      sentenceCheck,
       retryInfo: aiResult.retryInfo || null
     });
   } catch (error) {
-    console.error('Generation error:', error);
+    console.error('Sentence check error:', error);
     res.status(500).json({
       success: false,
-      message: req.t('generations.serverErrorGeneratingSentence')
+      message: req.t('sentenceCheck.serverErrorCheckingSentence')
     });
   }
 };
 
-// @desc    Get user's generations
-// @route   GET /api/generations
+// @desc    Get user's sentence checks
+// @route   GET /api/checks
 // @access  Private
-exports.getUserGenerations = async (req, res) => {
+exports.getUserSentenceChecks = async (req, res) => {
   try {
     const { page = 1, limit = 10, sortBy = 'recent' } = req.query;
     const skip = (page - 1) * limit;
@@ -107,41 +99,41 @@ exports.getUserGenerations = async (req, res) => {
         sortCriteria = { createdAt: -1 };
     }
 
-    // Get generations
-    const generations = await Generation.find({ userId: req.user.id })
+    // Get sentence checks
+    const sentenceChecks = await SentenceCheck.find({ userId: req.user.id })
       .populate('userId', 'username')
       .sort(sortCriteria)
       .skip(skip)
       .limit(parseInt(limit));
 
     // Get total count
-    const total = await Generation.countDocuments({ userId: req.user.id });
+    const total = await SentenceCheck.countDocuments({ userId: req.user.id });
 
     res.status(200).json({
       success: true,
-      generations,
+      sentenceChecks,
       pagination: {
         current: parseInt(page),
         total: Math.ceil(total / limit),
-        hasNext: skip + generations.length < total,
-        totalGenerations: total
+        hasNext: skip + sentenceChecks.length < total,
+        totalChecks: total
       }
     });
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: req.t('generations.serverErrorFetchingGenerations')
+      message: req.t('sentenceCheck.serverErrorFetchingChecks')
     });
   }
 };
 
-// @desc    Get public generations feed
-// @route   GET /api/generations/public
+// @desc    Get public sentence checks feed
+// @route   GET /api/checks/public
 // @access  Public (NO AUTHENTICATION REQUIRED)
-exports.getPublicGenerations = async (req, res) => {
+exports.getPublicSentenceChecks = async (req, res) => {
   try {
     // Validate query parameters
-    const { error, value } = publicGenerationsSchema.validate(req.query);
+    const { error, value } = publicChecksSchema.validate(req.query);
     if (error) {
       return res.status(400).json({
         success: false,
@@ -152,7 +144,7 @@ exports.getPublicGenerations = async (req, res) => {
     const { page, limit, sortBy } = value;
     const skip = (page - 1) * limit;
 
-    // Build aggregation pipeline for public generations
+    // Build aggregation pipeline for public sentence checks
     let aggregatePipeline = [
       { $match: { isPublic: true } }
     ];
@@ -219,34 +211,34 @@ exports.getPublicGenerations = async (req, res) => {
     });
 
     // Execute aggregation
-    const generations = await Generation.aggregate(aggregatePipeline);
+    const sentenceChecks = await SentenceCheck.aggregate(aggregatePipeline);
 
     // Get total count for pagination
-    const total = await Generation.countDocuments({ isPublic: true });
+    const total = await SentenceCheck.countDocuments({ isPublic: true });
 
     res.status(200).json({
       success: true,
-      generations,
+      sentenceChecks,
       pagination: {
         current: parseInt(page),
         total: Math.ceil(total / limit),
-        hasNext: skip + generations.length < total,
-        totalGenerations: total
+        hasNext: skip + sentenceChecks.length < total,
+        totalChecks: total
       }
     });
   } catch (error) {
-    console.error('Public generations error:', error);
+    console.error('Public sentence checks error:', error);
     res.status(500).json({
       success: false,
-      message: req.t('generations.serverErrorFetchingGenerations')
+      message: req.t('sentenceCheck.serverErrorFetchingChecks')
     });
   }
 };
 
-// @desc    Get single generation
-// @route   GET /api/generations/:id
-// @access  Public (NO AUTHENTICATION REQUIRED for public generations)
-exports.getGeneration = async (req, res) => {
+// @desc    Get single sentence check
+// @route   GET /api/checks/:id
+// @access  Public (NO AUTHENTICATION REQUIRED for public checks)
+exports.getSentenceCheck = async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -258,10 +250,10 @@ exports.getGeneration = async (req, res) => {
       });
     }
 
-    // Find public generation or user's own generation if authenticated
+    // Find public sentence check or user's own check if authenticated
     let query = { _id: id };
     
-    // If user is authenticated, they can see their own private generations
+    // If user is authenticated, they can see their own private checks
     if (req.user) {
       query = {
         _id: id,
@@ -271,34 +263,34 @@ exports.getGeneration = async (req, res) => {
         ]
       };
     } else {
-      // If not authenticated, only show public generations
+      // If not authenticated, only show public checks
       query.isPublic = true;
     }
 
-    const generation = await Generation.findOne(query)
+    const sentenceCheck = await SentenceCheck.findOne(query)
       .populate('userId', 'username');
 
-    if (!generation) {
+    if (!sentenceCheck) {
       return res.status(404).json({
         success: false,
-        message: req.t('generations.generationNotFound')
+        message: req.t('sentenceCheck.checkNotFound')
       });
     }
 
     res.status(200).json({
       success: true,
-      generation
+      sentenceCheck
     });
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: req.t('generations.serverErrorFetchingGenerations')
+      message: req.t('sentenceCheck.serverErrorFetchingChecks')
     });
   }
 };
 
-// @desc    Toggle like on generation
-// @route   POST /api/generations/:id/like
+// @desc    Toggle like on sentence check
+// @route   POST /api/checks/:id/like
 // @access  Private (AUTHENTICATION REQUIRED)
 exports.toggleLike = async (req, res) => {
   try {
@@ -312,61 +304,61 @@ exports.toggleLike = async (req, res) => {
       });
     }
 
-    // Find public generation (can only like public generations)
-    const generation = await Generation.findOne({ 
+    // Find public sentence check (can only like public checks)
+    const sentenceCheck = await SentenceCheck.findOne({ 
       _id: id, 
       isPublic: true 
     });
 
-    if (!generation) {
+    if (!sentenceCheck) {
       return res.status(404).json({
         success: false,
-        message: req.t('generations.generationNotFound')
+        message: req.t('sentenceCheck.checkNotFound')
       });
     }
 
     const userId = req.user.id;
-    const existingLikeIndex = generation.likes.findIndex(
+    const existingLikeIndex = sentenceCheck.likes.findIndex(
       like => like.userId.toString() === userId
     );
 
     if (existingLikeIndex > -1) {
       // Remove like
-      generation.likes.splice(existingLikeIndex, 1);
-      generation.likeCount = Math.max(0, generation.likeCount - 1);
-      await generation.save();
+      sentenceCheck.likes.splice(existingLikeIndex, 1);
+      sentenceCheck.likeCount = Math.max(0, sentenceCheck.likeCount - 1);
+      await sentenceCheck.save();
 
       res.status(200).json({
         success: true,
-        message: req.t('generations.unlikedSuccessfully'),
+        message: req.t('sentenceCheck.unlikedSuccessfully'),
         liked: false,
-        likeCount: generation.likeCount
+        likeCount: sentenceCheck.likeCount
       });
     } else {
       // Add like
-      generation.likes.push({ userId });
-      generation.likeCount += 1;
-      await generation.save();
+      sentenceCheck.likes.push({ userId });
+      sentenceCheck.likeCount += 1;
+      await sentenceCheck.save();
 
       res.status(200).json({
         success: true,
-        message: req.t('generations.likedSuccessfully'),
+        message: req.t('sentenceCheck.likedSuccessfully'),
         liked: true,
-        likeCount: generation.likeCount
+        likeCount: sentenceCheck.likeCount
       });
     }
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: req.t('generations.serverErrorLikingGeneration')
+      message: req.t('sentenceCheck.serverErrorLikingCheck')
     });
   }
 };
 
-// @desc    Update generation privacy
-// @route   PUT /api/generations/:id/privacy
+// @desc    Update sentence check privacy
+// @route   PUT /api/checks/:id/privacy
 // @access  Private
-exports.updateGenerationPrivacy = async (req, res) => {
+exports.updateSentenceCheckPrivacy = async (req, res) => {
   try {
     const { id } = req.params;
     const { isPublic } = req.body;
@@ -387,39 +379,39 @@ exports.updateGenerationPrivacy = async (req, res) => {
       });
     }
 
-    // Find user's generation
-    const generation = await Generation.findOne({
+    // Find user's sentence check
+    const sentenceCheck = await SentenceCheck.findOne({
       _id: id,
       userId: req.user.id
     });
 
-    if (!generation) {
+    if (!sentenceCheck) {
       return res.status(404).json({
         success: false,
-        message: req.t('generations.generationNotFound')
+        message: req.t('sentenceCheck.checkNotFound')
       });
     }
 
     // Update privacy setting
-    generation.isPublic = isPublic;
-    await generation.save();
+    sentenceCheck.isPublic = isPublic;
+    await sentenceCheck.save();
 
     res.status(200).json({
       success: true,
-      generation
+      sentenceCheck
     });
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: req.t('generations.serverErrorUpdatingGeneration')
+      message: req.t('sentenceCheck.serverErrorUpdatingCheck')
     });
   }
 };
 
-// @desc    Delete generation
-// @route   DELETE /api/generations/:id
+// @desc    Delete sentence check
+// @route   DELETE /api/checks/:id
 // @access  Private
-exports.deleteGeneration = async (req, res) => {
+exports.deleteSentenceCheck = async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -431,37 +423,37 @@ exports.deleteGeneration = async (req, res) => {
       });
     }
 
-    // Find and delete user's generation
-    const generation = await Generation.findOneAndDelete({
+    // Find and delete user's sentence check
+    const sentenceCheck = await SentenceCheck.findOneAndDelete({
       _id: id,
       userId: req.user.id
     });
 
-    if (!generation) {
+    if (!sentenceCheck) {
       return res.status(404).json({
         success: false,
-        message: req.t('generations.generationNotFound')
+        message: req.t('sentenceCheck.checkNotFound')
       });
     }
 
     res.status(200).json({
       success: true,
-      message: req.t('generations.generationDeletedSuccessfully')
+      message: req.t('sentenceCheck.checkDeletedSuccessfully')
     });
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: req.t('generations.serverErrorDeletingGeneration')
+      message: req.t('sentenceCheck.serverErrorDeletingCheck')
     });
   }
 };
 
-// @desc    Get public statistics
-// @route   GET /api/generations/public/stats
+// @desc    Get public statistics for sentence checks
+// @route   GET /api/checks/public/stats
 // @access  Public (NO AUTHENTICATION REQUIRED)
 exports.getPublicStatistics = async (req, res) => {
   try {
-    // Aggregate statistics for public generations
+    // Aggregate statistics for public sentence checks
     const statisticsQuery = [
       {
         $match: { isPublic: true }
@@ -469,59 +461,59 @@ exports.getPublicStatistics = async (req, res) => {
       {
         $group: {
           _id: null,
-          totalGenerations: { $sum: 1 },
+          totalChecks: { $sum: 1 },
           totalLikes: { $sum: '$likeCount' },
-          totalWords: { $sum: { $size: '$words' } }
+          avgSentenceLength: { $avg: { $strLenCP: '$originalSentence' } }
         }
       }
     ];
 
-    const [statistics] = await Generation.aggregate(statisticsQuery);
+    const [statistics] = await SentenceCheck.aggregate(statisticsQuery);
 
-    // If no public generations exist, return zero stats
+    // If no public checks exist, return zero stats
     const stats = statistics || {
-      totalGenerations: 0,
+      totalChecks: 0,
       totalLikes: 0,
-      totalWords: 0
+      avgSentenceLength: 0
     };
 
     res.status(200).json({
       success: true,
       statistics: {
-        totalGenerations: stats.totalGenerations,
-        totalWords: stats.totalWords,
-        totalLikes: stats.totalLikes
+        totalChecks: stats.totalChecks,
+        totalLikes: stats.totalLikes,
+        avgSentenceLength: Math.round(stats.avgSentenceLength || 0)
       }
     });
   } catch (error) {
-    console.error('Public statistics error:', error);
+    console.error('Public sentence check statistics error:', error);
     res.status(500).json({
       success: false,
-      message: req.t('generations.serverErrorGettingStats')
+      message: req.t('sentenceCheck.serverErrorGettingStats')
     });
   }
 };
 
-// @desc    Delete all user's generations
-// @route   DELETE /api/generations/all
+// @desc    Delete all user's sentence checks
+// @route   DELETE /api/checks/all
 // @access  Private
-exports.deleteAllGenerations = async (req, res) => {
+exports.deleteAllSentenceChecks = async (req, res) => {
   try {
-    // Delete all generations for the authenticated user
-    const result = await Generation.deleteMany({
+    // Delete all sentence checks for the authenticated user
+    const result = await SentenceCheck.deleteMany({
       userId: req.user.id
     });
 
     res.status(200).json({
       success: true,
-      message: req.t('generations.allGenerationsDeletedSuccessfully'),
+      message: req.t('sentenceCheck.allChecksDeletedSuccessfully'),
       deletedCount: result.deletedCount
     });
   } catch (error) {
-    console.error('Delete all generations error:', error);
+    console.error('Delete all sentence checks error:', error);
     res.status(500).json({
       success: false,
-      message: req.t('generations.serverErrorDeletingAllGenerations')
+      message: req.t('sentenceCheck.serverErrorDeletingAllChecks')
     });
   }
 }; 

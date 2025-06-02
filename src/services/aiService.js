@@ -2,6 +2,7 @@ const axios = require('axios');
 const config = require('../../config/config');
 const User = require('../models/User');
 const HttpUtils = require('../utils/httpUtils');
+const i18n = require('../utils/i18n');
 
 class AIService {
     constructor() {
@@ -40,11 +41,20 @@ class AIService {
             timeout: 30000
         };
 
-        // Response format configuration
+        // Response format configuration for generation
         this.responseFormat = {
             sentenceMarker: "SENTENCE:",
             grammarMarker: "GRAMMAR_ANALYSIS:",
             chineseMarker: "CHINESE_TRANSLATION:",
+            endMarker: "END_FORMAT"
+        };
+
+        // Response format configuration for sentence checking
+        this.checkResponseFormat = {
+            grammarAnalysisMarker: "GRAMMAR_ANALYSIS:",
+            grammarCorrectionMarker: "GRAMMAR_CORRECTION:",
+            keywordAnalysisMarker: "KEYWORD_ANALYSIS:",
+            chineseDefinitionMarker: "CHINESE_DEFINITION:",
             endMarker: "END_FORMAT"
         };
     }
@@ -83,15 +93,121 @@ class AIService {
     }
 
     /**
+     * Check sentence using AI with platform configuration
+     * @param {string} sentence - Sentence to check
+     * @param {string} userId - User ID (optional)
+     * @param {number} maxRetries - Maximum retry attempts (default: 3)
+     * @param {string} grammarLanguageOption - Grammar explanation language option ('combined' or 'pure')
+     * @param {string} locale - Locale for error messages (default: 'en')
+     * @returns {Object} Sentence check result with retry info
+     */
+    async checkSentence(sentence, userId = null, maxRetries = 3, grammarLanguageOption = 'combined', locale = 'en') {
+        // Validate sentence first
+        this.validateSentence(sentence);
+
+        // Get configuration for user
+        const aiConfig = await this.getConfigurationForUser(userId);
+
+        if (!aiConfig.apiKey) {
+            throw new Error('No API key available. Please contact administrator or provide your own API key.');
+        }
+
+        let attempt = 0;
+        let lastError = null;
+
+        while (attempt < maxRetries) {
+            attempt++;
+            
+            try {
+                // Create structured prompt for sentence checking
+                const prompt = this.createSentenceCheckPrompt(sentence, grammarLanguageOption);
+
+                // Prepare request data using configuration
+                const {headers, requestBody} = HttpUtils.prepareRequestData(
+                    aiConfig,
+                    prompt,
+                    [] // No conversation history for sentence checking
+                );
+
+                // Make HTTP request
+                const response = await axios.post(aiConfig.apiUrl, requestBody, {
+                    headers,
+                    timeout: aiConfig.timeout
+                });
+
+                // Process response using configuration
+                const {content, thinking} = HttpUtils.processAiResponse(
+                    JSON.stringify(response.data),
+                    aiConfig
+                );
+
+                // Parse the structured response
+                const parsedResponse = this.parseSentenceCheckResponse(content, locale);
+
+                if (parsedResponse.isValid) {
+                    return {
+                        grammarAnalysis: parsedResponse.grammarAnalysis,
+                        grammarCorrection: parsedResponse.grammarCorrection,
+                        keywordAnalysis: parsedResponse.keywordAnalysis,
+                        chineseDefinition: parsedResponse.chineseDefinition,
+                        aiModel: aiConfig.model,
+                        thinking: thinking,
+                        rawResponse: response.data,
+                        retryInfo: {
+                            attempt: attempt,
+                            maxRetries: maxRetries,
+                            success: true
+                        }
+                    };
+                } else {
+                    // Invalid format, will retry if attempts remaining
+                    lastError = new Error(`Invalid response format on attempt ${attempt}: ${parsedResponse.error}`);
+                    if (attempt >= maxRetries) {
+                        throw lastError;
+                    }
+                    continue;
+                }
+
+            } catch (error) {
+                lastError = error;
+                
+                // Only retry for format errors, not for API errors
+                if (error.response?.status === 429) {
+                    throw new Error('Rate limit exceeded. Please try again later.');
+                } else if (error.response?.status === 401) {
+                    throw new Error('Invalid API key or authentication failed.');
+                } else if (error.code === 'ECONNABORTED') {
+                    throw new Error('Request timeout. Please try again.');
+                } else if (error.response?.status === 400) {
+                    throw new Error('Invalid request to AI API');
+                } else if (error.message.includes('Invalid response format')) {
+                    // Format error - continue retrying
+                    if (attempt >= maxRetries) {
+                        throw new Error(`Failed to get valid response format after ${maxRetries} attempts. Last error: ${error.message}`);
+                    }
+                    continue;
+                } else {
+                    // Other errors - don't retry
+                    throw new Error(`AI service error: ${error.message}`);
+                }
+            }
+        }
+
+        // If we get here, all retries failed
+        throw lastError || new Error(`Failed to check sentence after ${maxRetries} attempts`);
+    }
+
+    /**
      * Generate sentence using AI with platform configuration
      * @param {Array} words - Array of words to include
      * @param {string} userId - User ID (optional)
      * @param {Array} conversationHistory - Previous messages (optional)
      * @param {number} maxRetries - Maximum retry attempts (default: 3)
      * @param {string} grammarLanguageOption - Grammar explanation language option ('combined' or 'pure')
+     * @param {string} locale - Locale for error messages (default: 'en')
      * @returns {Object} Generated sentence and explanation with retry info
      */
-    async generateSentence(words, userId = null, conversationHistory = [], maxRetries = 3, grammarLanguageOption = 'combined') {
+    async generateSentence(words, userId = null, conversationHistory = [], maxRetries = 3, grammarLanguageOption = 'combined', locale = 'en') {
         // Validate words first
         const cleanedWords = this.validateWords(words);
 
@@ -132,7 +248,7 @@ class AIService {
                 );
 
                 // Parse the structured response
-                const parsedResponse = this.parseStructuredResponse(content);
+                const parsedResponse = this.parseStructuredResponse(content, locale);
 
                 if (parsedResponse.isValid) {
                     return {
@@ -187,6 +303,106 @@ class AIService {
     }
 
     /**
+     * Create structured prompt for sentence checking
+     * @param {string} sentence - Sentence to check
+     * @param {string} grammarLanguageOption - Grammar explanation language option ('combined' or 'pure')
+     * @returns {string} Structured prompt
+     */
+    createSentenceCheckPrompt(sentence, grammarLanguageOption) {
+        if (grammarLanguageOption === 'combined') {
+            // Combined Chinese and English explanation (default)
+            return `You are an English language tutor and grammar expert. 
+
+CRITICAL FORMATTING REQUIREMENT: You MUST use the EXACT format shown below. Do NOT deviate from this format. Do NOT add extra formatting, numbering, or bullet points in the section headers. Each section must start with the exact marker shown and contain only the content requested.
+
+SENTENCE TO ANALYZE: "${sentence}"
+
+MANDATORY OUTPUT FORMAT (follow EXACTLY):
+
+GRAMMAR_ANALYSIS:
+Provide comprehensive grammar analysis covering overall sentence structure and correctness, grammar rules that apply or are violated, detailed explanation of each grammatical element, and educational insights about the grammar used. 
+
+Provide the explanation in both English and Chinese for better understanding, with key grammar terms explained in both languages. 
+
+Organize your analysis clearly with proper paragraph breaks for readability. Use natural flowing text without numbered lists or bullet points within this section.
+
+GRAMMAR_CORRECTION:
+If there are any grammar errors, provide the corrected sentence here. If the sentence is already correct, write "The sentence is grammatically correct." and provide an alternative or improved version if possible.
+
+KEYWORD_ANALYSIS:
+Analyze the key words and phrases in the sentence including important vocabulary and their functions, phrases and their meanings, word choice analysis, and suggestions for vocabulary enhancement. 
+
+Present this analysis in clear, well-organized paragraphs with proper spacing for easy reading.
+
+CHINESE_DEFINITION:
+Provide a natural and accurate Chinese translation/definition of the sentence, explaining the meaning and context.
+
+END_FORMAT
+
+FORMATTING GUIDELINES FOR READABILITY:
+- Use proper paragraph breaks between different points within each section
+- Add blank lines between major concepts for visual clarity
+- Write in clear, flowing prose that's easy to read
+- Organize content logically within each section
+- Ensure each section has substantial, well-structured content
+
+CRITICAL REMINDERS:
+- Use ONLY the exact section headers shown above (GRAMMAR_ANALYSIS:, GRAMMAR_CORRECTION:, KEYWORD_ANALYSIS:, CHINESE_DEFINITION:, END_FORMAT)
+- Do NOT add numbers, bullets, or extra formatting to the headers
+- Do NOT add extra text before or after the required sections
+- Each section must contain substantial content (minimum 20 characters for analysis sections)
+- Focus on clarity, readability, and proper formatting within sections
+
+Sentence to analyze: "${sentence}"`;
+        } else {
+            // Pure English explanation
+            return `You are an English language tutor and grammar expert.
+
+CRITICAL FORMATTING REQUIREMENT: You MUST use the EXACT format shown below. Do NOT deviate from this format. Do NOT add extra formatting, numbering, or bullet points in the section headers. Each section must start with the exact marker shown and contain only the content requested.
+
+SENTENCE TO ANALYZE: "${sentence}"
+
+MANDATORY OUTPUT FORMAT (follow EXACTLY):
+
+GRAMMAR_ANALYSIS:
+Provide comprehensive grammar analysis covering overall sentence structure and correctness, grammar rules that apply or are violated, detailed explanation of each grammatical element, and educational insights about the grammar used. 
+
+Provide the explanation in clear, comprehensive English only. 
+
+Organize your analysis clearly with proper paragraph breaks for readability. Use natural flowing text without numbered lists or bullet points within this section.
+
+GRAMMAR_CORRECTION:
+If there are any grammar errors, provide the corrected sentence here. If the sentence is already correct, write "The sentence is grammatically correct." and provide an alternative or improved version if possible.
+
+KEYWORD_ANALYSIS:
+Analyze the key words and phrases in the sentence including important vocabulary and their functions, phrases and their meanings, word choice analysis, and suggestions for vocabulary enhancement. 
+
+Present this analysis in clear, well-organized paragraphs with proper spacing for easy reading.
+
+CHINESE_DEFINITION:
+Provide a natural and accurate Chinese translation/definition of the sentence, explaining the meaning and context.
+
+END_FORMAT
+
+FORMATTING GUIDELINES FOR READABILITY:
+- Use proper paragraph breaks between different points within each section
+- Add blank lines between major concepts for visual clarity
+- Write in clear, flowing prose that's easy to read
+- Organize content logically within each section
+- Ensure each section has substantial, well-structured content
+
+CRITICAL REMINDERS:
+- Use ONLY the exact section headers shown above (GRAMMAR_ANALYSIS:, GRAMMAR_CORRECTION:, KEYWORD_ANALYSIS:, CHINESE_DEFINITION:, END_FORMAT)
+- Do NOT add numbers, bullets, or extra formatting to the headers
+- Do NOT add extra text before or after the required sections
+- Each section must contain substantial content (minimum 20 characters for analysis sections)
+- Focus on clarity, readability, and proper formatting within sections
+
+Sentence to analyze: "${sentence}"`;
+        }
+    }
+
+    /**
      * Create structured prompt with specific format requirements
      * @param {Array} cleanedWords - Array of cleaned words
      * @param {string} grammarLanguageOption - Grammar explanation language option ('combined' or 'pure')
@@ -197,81 +413,266 @@ class AIService {
             // Combined Chinese and English explanation (default)
             return `You are an English language tutor. Create a single natural sentence that incorporates ALL of the following words: ${cleanedWords.join(', ')}
 
-IMPORTANT: You MUST follow this EXACT output format:
+CRITICAL FORMATTING REQUIREMENT: You MUST use the EXACT format shown below. Do NOT deviate from this format. Do NOT add extra formatting, numbering, or bullet points in the section headers. Each section must start with the exact marker shown and contain only the content requested.
+
+MANDATORY OUTPUT FORMAT (follow EXACTLY):
 
 SENTENCE:
-[Write a single, grammatically correct sentence using ALL the provided words naturally]
+Write a single, grammatically correct sentence using ALL the provided words naturally.
 
 GRAMMAR_ANALYSIS:
-[Provide detailed grammar explanation covering:
-1. Sentence structure (subject, predicate, objects, etc.)
-2. How each word functions in the sentence
-3. Grammar rules demonstrated
-4. Educational insights about word usage
+Provide detailed grammar explanation covering sentence structure (subject, predicate, objects, etc.), how each word functions in the sentence, grammar rules demonstrated, and educational insights about word usage. 
 
-Please provide the explanation in both English and Chinese for better understanding, with key grammar terms explained in both languages.]
+Provide the explanation in both English and Chinese for better understanding, with key grammar terms explained in both languages. 
+
+Organize your analysis clearly with proper paragraph breaks for readability. Use natural flowing text without numbered lists or bullet points within this section.
 
 CHINESE_TRANSLATION:
-[Provide a natural and accurate Chinese translation of the sentence, maintaining the meaning and context]
+Provide a natural and accurate Chinese translation of the sentence, maintaining the meaning and context.
 
 END_FORMAT
 
-Requirements:
+FORMATTING GUIDELINES FOR READABILITY:
+- Use proper paragraph breaks between different points within each section
+- Add blank lines between major concepts for visual clarity
+- Write in clear, flowing prose that's easy to read
+- Organize content logically within each section
+- Ensure each section has substantial, well-structured content
+
+CRITICAL REMINDERS:
 - Use ALL provided words: ${cleanedWords.join(', ')}
+- Use ONLY the exact section headers shown above (SENTENCE:, GRAMMAR_ANALYSIS:, CHINESE_TRANSLATION:, END_FORMAT)
+- Do NOT add numbers, bullets, or extra formatting to the headers
+- Do NOT add extra text before or after the required sections
 - The sentence must be natural and meaningful
 - Grammar analysis must be detailed and educational, provided in both English and Chinese
 - Chinese translation must be accurate and natural
-- Follow the exact format above with the markers
+- Focus on clarity, readability, and proper formatting within sections
 
 Words to include: ${cleanedWords.join(', ')}`;
         } else {
             // Pure English explanation
             return `You are an English language tutor. Create a single natural sentence that incorporates ALL of the following words: ${cleanedWords.join(', ')}
 
-IMPORTANT: You MUST follow this EXACT output format:
+CRITICAL FORMATTING REQUIREMENT: You MUST use the EXACT format shown below. Do NOT deviate from this format. Do NOT add extra formatting, numbering, or bullet points in the section headers. Each section must start with the exact marker shown and contain only the content requested.
+
+MANDATORY OUTPUT FORMAT (follow EXACTLY):
 
 SENTENCE:
-[Write a single, grammatically correct sentence using ALL the provided words naturally]
+Write a single, grammatically correct sentence using ALL the provided words naturally.
 
 GRAMMAR_ANALYSIS:
-[Provide detailed grammar explanation covering:
-1. Sentence structure (subject, predicate, objects, etc.)
-2. How each word functions in the sentence
-3. Grammar rules demonstrated
-4. Educational insights about word usage
+Provide detailed grammar explanation covering sentence structure (subject, predicate, objects, etc.), how each word functions in the sentence, grammar rules demonstrated, and educational insights about word usage. 
 
-Please provide the explanation in clear, comprehensive English only.]
+Provide the explanation in clear, comprehensive English only. 
+
+Organize your analysis clearly with proper paragraph breaks for readability. Use natural flowing text without numbered lists or bullet points within this section.
 
 CHINESE_TRANSLATION:
-[Provide a natural and accurate Chinese translation of the sentence, maintaining the meaning and context]
+Provide a natural and accurate Chinese translation of the sentence, maintaining the meaning and context.
 
 END_FORMAT
 
-Requirements:
+FORMATTING GUIDELINES FOR READABILITY:
+- Use proper paragraph breaks between different points within each section
+- Add blank lines between major concepts for visual clarity
+- Write in clear, flowing prose that's easy to read
+- Organize content logically within each section
+- Ensure each section has substantial, well-structured content
+
+CRITICAL REMINDERS:
 - Use ALL provided words: ${cleanedWords.join(', ')}
+- Use ONLY the exact section headers shown above (SENTENCE:, GRAMMAR_ANALYSIS:, CHINESE_TRANSLATION:, END_FORMAT)
+- Do NOT add numbers, bullets, or extra formatting to the headers
+- Do NOT add extra text before or after the required sections
 - The sentence must be natural and meaningful
 - Grammar analysis must be detailed and educational, provided in English only
 - Chinese translation must be accurate and natural
-- Follow the exact format above with the markers
+- Focus on clarity, readability, and proper formatting within sections
 
 Words to include: ${cleanedWords.join(', ')}`;
         }
     }
 
     /**
-     * Parse structured AI response to extract sentence and grammar analysis
+     * Parse structured sentence check AI response
      * @param {string} content - AI response content
+     * @param {string} locale - Locale for error messages (default: 'en')
      * @returns {Object} Parsed response with validation
      */
-    parseStructuredResponse(content) {
+    parseSentenceCheckResponse(content, locale = 'en') {
+        try {
+            const { grammarAnalysisMarker, grammarCorrectionMarker, keywordAnalysisMarker, chineseDefinitionMarker, endMarker } = this.checkResponseFormat;
+            
+            // Check if all required markers are present
+            const missingMarkers = [];
+            if (!content.includes(grammarAnalysisMarker)) missingMarkers.push(grammarAnalysisMarker);
+            if (!content.includes(grammarCorrectionMarker)) missingMarkers.push(grammarCorrectionMarker);
+            if (!content.includes(keywordAnalysisMarker)) missingMarkers.push(keywordAnalysisMarker);
+            if (!content.includes(chineseDefinitionMarker)) missingMarkers.push(chineseDefinitionMarker);
+            
+            if (missingMarkers.length > 0) {
+                return {
+                    isValid: false,
+                    error: i18n.t('ai.missingFormatMarkers', locale, { 
+                        markers: missingMarkers.join(', ')
+                    }) + ` | Response preview: "${content.substring(0, 200)}..."`,
+                    grammarAnalysis: '',
+                    grammarCorrection: '',
+                    keywordAnalysis: '',
+                    chineseDefinition: ''
+                };
+            }
+
+            // Verify marker order
+            const grammarAnalysisIndex = content.indexOf(grammarAnalysisMarker);
+            const grammarCorrectionIndex = content.indexOf(grammarCorrectionMarker);
+            const keywordAnalysisIndex = content.indexOf(keywordAnalysisMarker);
+            const chineseDefinitionIndex = content.indexOf(chineseDefinitionMarker);
+
+            if (grammarAnalysisIndex >= grammarCorrectionIndex || 
+                grammarCorrectionIndex >= keywordAnalysisIndex || 
+                keywordAnalysisIndex >= chineseDefinitionIndex) {
+                return {
+                    isValid: false,
+                    error: i18n.t('ai.invalidMarkerOrder', locale, { 
+                        expected: 'GRAMMAR_ANALYSIS → GRAMMAR_CORRECTION → KEYWORD_ANALYSIS → CHINESE_DEFINITION' 
+                    }) + ` | Found order: GA:${grammarAnalysisIndex}, GC:${grammarCorrectionIndex}, KA:${keywordAnalysisIndex}, CD:${chineseDefinitionIndex}`,
+                    grammarAnalysis: '',
+                    grammarCorrection: '',
+                    keywordAnalysis: '',
+                    chineseDefinition: ''
+                };
+            }
+
+            // Extract grammar analysis section
+            const grammarAnalysisStart = grammarAnalysisIndex + grammarAnalysisMarker.length;
+            const grammarAnalysisSection = content.substring(grammarAnalysisStart, grammarCorrectionIndex).trim();
+            
+            // Extract grammar correction section
+            const grammarCorrectionStart = grammarCorrectionIndex + grammarCorrectionMarker.length;
+            const grammarCorrectionSection = content.substring(grammarCorrectionStart, keywordAnalysisIndex).trim();
+
+            // Extract keyword analysis section  
+            const keywordAnalysisStart = keywordAnalysisIndex + keywordAnalysisMarker.length;
+            const keywordAnalysisSection = content.substring(keywordAnalysisStart, chineseDefinitionIndex).trim();
+
+            // Extract Chinese definition section
+            const chineseDefinitionStart = chineseDefinitionIndex + chineseDefinitionMarker.length;
+            const endFormatIndex = content.indexOf(endMarker);
+            
+            let chineseDefinitionSection;
+            if (endFormatIndex !== -1) {
+                chineseDefinitionSection = content.substring(chineseDefinitionStart, endFormatIndex).trim();
+            } else {
+                chineseDefinitionSection = content.substring(chineseDefinitionStart).trim();
+            }
+
+            // Validate extracted content with specific error messages
+            if (!grammarAnalysisSection || grammarAnalysisSection.length < 20) {
+                return {
+                    isValid: false,
+                    error: i18n.t('ai.grammarAnalysisTooShort', locale) + ` | Length: ${grammarAnalysisSection.length}, Content: "${grammarAnalysisSection.substring(0, 100)}..."`,
+                    grammarAnalysis: '',
+                    grammarCorrection: '',
+                    keywordAnalysis: '',
+                    chineseDefinition: ''
+                };
+            }
+
+            if (!grammarCorrectionSection || grammarCorrectionSection.length < 10) {
+                return {
+                    isValid: false,
+                    error: i18n.t('ai.grammarCorrectionTooShort', locale) + ` | Length: ${grammarCorrectionSection.length}, Content: "${grammarCorrectionSection.substring(0, 100)}..."`,
+                    grammarAnalysis: '',
+                    grammarCorrection: '',
+                    keywordAnalysis: '',
+                    chineseDefinition: ''
+                };
+            }
+
+            if (!keywordAnalysisSection || keywordAnalysisSection.length < 20) {
+                return {
+                    isValid: false,
+                    error: i18n.t('ai.keywordAnalysisTooShort', locale) + ` | Length: ${keywordAnalysisSection.length}, Content: "${keywordAnalysisSection.substring(0, 100)}..."`,
+                    grammarAnalysis: '',
+                    grammarCorrection: '',
+                    keywordAnalysis: '',
+                    chineseDefinition: ''
+                };
+            }
+
+            if (!chineseDefinitionSection || chineseDefinitionSection.length < 10) {
+                return {
+                    isValid: false,
+                    error: i18n.t('ai.chineseDefinitionTooShort', locale) + ` | Length: ${chineseDefinitionSection.length}, Content: "${chineseDefinitionSection.substring(0, 100)}..."`,
+                    grammarAnalysis: '',
+                    grammarCorrection: '',
+                    keywordAnalysis: '',
+                    chineseDefinition: ''
+                };
+            }
+
+            return {
+                isValid: true,
+                grammarAnalysis: grammarAnalysisSection,
+                grammarCorrection: grammarCorrectionSection,
+                keywordAnalysis: keywordAnalysisSection,
+                chineseDefinition: chineseDefinitionSection,
+                error: null
+            };
+
+        } catch (error) {
+            return {
+                isValid: false,
+                error: i18n.t('ai.parseError', locale, { message: error.message }) + ` | Response preview: "${content.substring(0, 200)}..."`,
+                grammarAnalysis: '',
+                grammarCorrection: '',
+                keywordAnalysis: '',
+                chineseDefinition: ''
+            };
+        }
+    }
+
+    /**
+     * Parse structured AI response to extract sentence and grammar analysis
+     * @param {string} content - AI response content
+     * @param {string} locale - Locale for error messages (default: 'en')
+     * @returns {Object} Parsed response with validation
+     */
+    parseStructuredResponse(content, locale = 'en') {
         try {
             const { sentenceMarker, grammarMarker, chineseMarker, endMarker } = this.responseFormat;
             
             // Check if all required markers are present
-            if (!content.includes(sentenceMarker) || !content.includes(grammarMarker) || !content.includes(chineseMarker)) {
+            const missingMarkers = [];
+            if (!content.includes(sentenceMarker)) missingMarkers.push(sentenceMarker);
+            if (!content.includes(grammarMarker)) missingMarkers.push(grammarMarker);
+            if (!content.includes(chineseMarker)) missingMarkers.push(chineseMarker);
+            
+            if (missingMarkers.length > 0) {
                 return {
                     isValid: false,
-                    error: `Missing required format markers. Expected: ${sentenceMarker}, ${grammarMarker}, and ${chineseMarker}`,
+                    error: i18n.t('ai.missingFormatMarkers', locale, { 
+                        markers: missingMarkers.join(', ')
+                    }) + ` | Response preview: "${content.substring(0, 200)}..."`,
+                    sentence: '',
+                    grammarAnalysis: '',
+                    chineseTranslation: ''
+                };
+            }
+
+            // Verify marker order
+            const sentenceIndex = content.indexOf(sentenceMarker);
+            const grammarIndex = content.indexOf(grammarMarker);
+            const chineseIndex = content.indexOf(chineseMarker);
+
+            if (sentenceIndex >= grammarIndex || grammarIndex >= chineseIndex) {
+                return {
+                    isValid: false,
+                    error: i18n.t('ai.invalidMarkerOrder', locale, { 
+                        expected: 'SENTENCE → GRAMMAR_ANALYSIS → CHINESE_TRANSLATION' 
+                    }) + ` | Found order: S:${sentenceIndex}, GA:${grammarIndex}, CT:${chineseIndex}`,
                     sentence: '',
                     grammarAnalysis: '',
                     chineseTranslation: ''
@@ -279,41 +680,29 @@ Words to include: ${cleanedWords.join(', ')}`;
             }
 
             // Extract sentence section
-            const sentenceStart = content.indexOf(sentenceMarker) + sentenceMarker.length;
-            const grammarStart = content.indexOf(grammarMarker);
-            
-            if (sentenceStart >= grammarStart) {
-                return {
-                    isValid: false,
-                    error: 'Invalid marker order. SENTENCE must come before GRAMMAR_ANALYSIS',
-                    sentence: '',
-                    grammarAnalysis: '',
-                    chineseTranslation: ''
-                };
-            }
-
-            const sentenceSection = content.substring(sentenceStart, grammarStart).trim();
+            const sentenceStart = sentenceIndex + sentenceMarker.length;
+            const sentenceSection = content.substring(sentenceStart, grammarIndex).trim();
             
             // Extract grammar analysis section
-            const grammarAnalysisStart = content.indexOf(grammarMarker) + grammarMarker.length;
-            const chineseTranslationStart = content.indexOf(chineseMarker) + chineseMarker.length;
+            const grammarAnalysisStart = grammarIndex + grammarMarker.length;
+            const grammarSection = content.substring(grammarAnalysisStart, chineseIndex).trim();
+
+            // Extract Chinese translation section
+            const chineseTranslationStart = chineseIndex + chineseMarker.length;
             const endFormatIndex = content.indexOf(endMarker);
             
-            let grammarSection;
             let chineseTranslationSection;
             if (endFormatIndex !== -1) {
-                grammarSection = content.substring(grammarAnalysisStart, content.indexOf(chineseMarker)).trim();
                 chineseTranslationSection = content.substring(chineseTranslationStart, endFormatIndex).trim();
             } else {
-                grammarSection = content.substring(grammarAnalysisStart, content.indexOf(chineseMarker)).trim();
                 chineseTranslationSection = content.substring(chineseTranslationStart).trim();
             }
 
-            // Validate extracted content
+            // Validate extracted content with specific error messages
             if (!sentenceSection || sentenceSection.length < 10) {
                 return {
                     isValid: false,
-                    error: 'Sentence section is too short or empty',
+                    error: i18n.t('ai.sentenceSectionTooShort', locale) + ` | Length: ${sentenceSection.length}, Content: "${sentenceSection.substring(0, 100)}..."`,
                     sentence: '',
                     grammarAnalysis: '',
                     chineseTranslation: ''
@@ -323,7 +712,7 @@ Words to include: ${cleanedWords.join(', ')}`;
             if (!grammarSection || grammarSection.length < 20) {
                 return {
                     isValid: false,
-                    error: 'Grammar analysis section is too short or empty',
+                    error: i18n.t('ai.grammarAnalysisTooShort', locale) + ` | Length: ${grammarSection.length}, Content: "${grammarSection.substring(0, 100)}..."`,
                     sentence: '',
                     grammarAnalysis: '',
                     chineseTranslation: ''
@@ -333,7 +722,7 @@ Words to include: ${cleanedWords.join(', ')}`;
             if (!chineseTranslationSection || chineseTranslationSection.length < 10) {
                 return {
                     isValid: false,
-                    error: 'Chinese translation section is too short or empty',
+                    error: i18n.t('ai.chineseTranslationTooShort', locale) + ` | Length: ${chineseTranslationSection.length}, Content: "${chineseTranslationSection.substring(0, 100)}..."`,
                     sentence: '',
                     grammarAnalysis: '',
                     chineseTranslation: ''
@@ -351,7 +740,7 @@ Words to include: ${cleanedWords.join(', ')}`;
         } catch (error) {
             return {
                 isValid: false,
-                error: `Parse error: ${error.message}`,
+                error: i18n.t('ai.parseError', locale, { message: error.message }) + ` | Response preview: "${content.substring(0, 200)}..."`,
                 sentence: '',
                 grammarAnalysis: '',
                 chineseTranslation: ''
@@ -421,6 +810,32 @@ Words to include: ${cleanedWords.join(', ')}`;
                 "Multi-word integration"
             ]
         };
+    }
+
+    /**
+     * Validate sentence
+     * @param {string} sentence - Sentence to validate
+     * @returns {string} Cleaned sentence
+     */
+    validateSentence(sentence) {
+        if (typeof sentence !== 'string') {
+            throw new Error('Sentence must be a string');
+        }
+
+        if (sentence.trim().length === 0) {
+            throw new Error('Sentence cannot be empty');
+        }
+
+        if (sentence.trim().length > 800) {
+            throw new Error('Sentence must be 800 characters or less');
+        }
+
+        // Basic validation for reasonable text (allow letters, numbers, punctuation, spaces)
+        if (!/^[a-zA-Z0-9\s.,!?;:\-'"()\[\]{}]+$/.test(sentence.trim())) {
+            throw new Error('Sentence contains invalid characters');
+        }
+
+        return sentence.trim();
     }
 
     /**

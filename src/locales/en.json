@@ -54,6 +54,23 @@
     "serverErrorUnlikingGeneration": "Server error removing like",
     "serverErrorGettingStats": "Server error getting generation statistics"
   },
+  "sentenceCheck": {
+    "serverErrorCheckingSentence": "Server error checking sentence",
+    "serverErrorFetchingChecks": "Server error fetching sentence checks",
+    "checkNotFound": "Sentence check not found",
+    "serverErrorUpdatingCheck": "Server error updating sentence check",
+    "checkDeletedSuccessfully": "Sentence check deleted successfully",
+    "serverErrorDeletingCheck": "Server error deleting sentence check",
+    "allChecksDeletedSuccessfully": "All sentence checks deleted successfully",
+    "serverErrorDeletingAllChecks": "Server error deleting all sentence checks",
+    "alreadyLiked": "You have already liked this sentence check",
+    "likedSuccessfully": "Sentence check liked successfully",
+    "serverErrorLikingCheck": "Server error liking sentence check",
+    "notLiked": "You have not liked this sentence check",
+    "unlikedSuccessfully": "Like removed successfully",
+    "serverErrorUnlikingCheck": "Server error removing like",
+    "serverErrorGettingStats": "Server error getting sentence check statistics"
+  },
   "aiConfig": {
     "serverErrorFetchingConfigs": "Server error fetching AI configurations",
     "configNotFound": "AI configuration not found",
@@ -89,6 +106,7 @@
   },
   "ai": {
     "generationFailed": "AI generation failed: {{message}}",
+    "checkFailed": "AI sentence check failed: {{message}}",
     "configurationError": "AI configuration error: {{message}}",
     "connectionError": "Unable to connect to AI service",
     "quotaExceeded": "AI service quota exceeded",
@@ -96,7 +114,16 @@
     "formatError": "AI response format is invalid",
     "retryAttempt": "Retry attempt {{attempt}} of {{max}}",
     "retryExceeded": "Maximum retry attempts exceeded",
-    "parsingError": "Failed to parse AI response format"
+    "parsingError": "Failed to parse AI response format",
+    "missingFormatMarkers": "Missing required format markers. Expected: {{markers}}",
+    "invalidMarkerOrder": "Invalid marker order. {{expected}}",
+    "sentenceSectionTooShort": "Sentence section is too short or empty",
+    "grammarAnalysisTooShort": "Grammar analysis section is too short or empty",
+    "chineseTranslationTooShort": "Chinese translation section is too short or empty",
+    "grammarCorrectionTooShort": "Grammar correction section is too short or empty",
+    "keywordAnalysisTooShort": "Keyword analysis section is too short or empty",
+    "chineseDefinitionTooShort": "Chinese definition section is too short or empty",
+    "parseError": "Parse error: {{message}}"
   },
   "apiKey": {
     "title": "AI Configuration",
