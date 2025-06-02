@@ -35,6 +35,8 @@
     "serverErrorUpdatingGeneration": "更新生成结果时出现服务器错误",
     "generationDeletedSuccessfully": "生成结果删除成功",
     "serverErrorDeletingGeneration": "删除生成结果时出现服务器错误",
+    "allGenerationsDeletedSuccessfully": "所有生成结果删除成功",
+    "serverErrorDeletingAllGenerations": "删除所有生成结果时出现服务器错误",
     "alreadyLiked": "您已经点赞过此生成结果",
     "likedSuccessfully": "生成结果点赞成功",
     "serverErrorLikingGeneration": "点赞生成结果时出现服务器错误",

@@ -490,4 +490,28 @@ exports.getPublicStatistics = async (req, res) => {
       message: req.t('generations.serverErrorGettingStats')
     });
   }
+};
+
+// @desc    Delete all user's generations
+// @route   DELETE /api/generations/all
+// @access  Private
+exports.deleteAllGenerations = async (req, res) => {
+  try {
+    // Delete all generations for the authenticated user
+    const result = await Generation.deleteMany({
+      userId: req.user.id
+    });
+
+    res.status(200).json({
+      success: true,
+      message: req.t('generations.allGenerationsDeletedSuccessfully'),
+      deletedCount: result.deletedCount
+    });
+  } catch (error) {
+    console.error('Delete all generations error:', error);
+    res.status(500).json({
+      success: false,
+      message: req.t('generations.serverErrorDeletingAllGenerations')
+    });
+  }
 }; 

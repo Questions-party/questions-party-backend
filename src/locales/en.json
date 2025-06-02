@@ -37,6 +37,8 @@
     "serverErrorUpdatingGeneration": "Server error updating generation",
     "generationDeletedSuccessfully": "Generation deleted successfully",
     "serverErrorDeletingGeneration": "Server error deleting generation",
+    "allGenerationsDeletedSuccessfully": "All generations deleted successfully",
+    "serverErrorDeletingAllGenerations": "Server error deleting all generations",
     "alreadyLiked": "You have already liked this generation",
     "likedSuccessfully": "Generation liked successfully",
     "serverErrorLikingGeneration": "Server error liking generation",

@@ -5,7 +5,8 @@ const {
   toggleLike,
   getGeneration,
   deleteGeneration,
-  updateGenerationPrivacy
+  updateGenerationPrivacy,
+  deleteAllGenerations
 } = require('../controllers/generationController');
 const { auth, optionalAuth } = require('../middleware/auth');
 
@@ -20,6 +21,11 @@ router.post('/', auth, generateSentence);
 // @desc    Get user's generations
 // @access  Private (requires authentication)
 router.get('/', auth, getUserGenerations);
+
+// @route   DELETE /api/generations/all
+// @desc    Delete all user's generations
+// @access  Private (requires authentication)
+router.delete('/all', auth, deleteAllGenerations);
 
 // @route   GET /api/generations/:id
 // @desc    Get single generation
