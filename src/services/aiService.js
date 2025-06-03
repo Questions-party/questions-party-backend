@@ -309,97 +309,48 @@ class AIService {
      * @returns {string} Structured prompt
      */
     createSentenceCheckPrompt(sentence, grammarLanguageOption) {
-        if (grammarLanguageOption === 'combined') {
-            // Combined Chinese and English explanation (default)
-            return `You are an English language tutor and grammar expert. 
+        const isEnglishOnly = grammarLanguageOption === 'pure';
+        const languageInstruction = isEnglishOnly 
+            ? "Provide explanations in English only." 
+            : "Provide explanations in both English and Chinese.";
 
-CRITICAL FORMATTING REQUIREMENT: You MUST use the EXACT format shown below. Do NOT deviate from this format. Do NOT add extra formatting, numbering, or bullet points in the section headers. Each section must start with the exact marker shown and contain only the content requested.
+        return `Analyze this sentence: "${sentence}"
 
-SENTENCE TO ANALYZE: "${sentence}"
+${languageInstruction}
 
-MANDATORY OUTPUT FORMAT (follow EXACTLY):
-
-GRAMMAR_ANALYSIS:
-Provide comprehensive grammar analysis covering overall sentence structure and correctness, grammar rules that apply or are violated, detailed explanation of each grammatical element, and educational insights about the grammar used. 
-
-Provide the explanation in both English and Chinese for better understanding, with key grammar terms explained in both languages. 
-
-Organize your analysis clearly with proper paragraph breaks for readability. Use natural flowing text without numbered lists or bullet points within this section.
-
-GRAMMAR_CORRECTION:
-If there are any grammar errors, provide the corrected sentence here. If the sentence is already correct, write "The sentence is grammatically correct." and provide an alternative or improved version if possible.
-
-KEYWORD_ANALYSIS:
-Analyze the key words and phrases in the sentence including important vocabulary and their functions, phrases and their meanings, word choice analysis, and suggestions for vocabulary enhancement. 
-
-Present this analysis in clear, well-organized paragraphs with proper spacing for easy reading.
-
-CHINESE_DEFINITION:
-Provide a natural and accurate Chinese translation/definition of the sentence, explaining the meaning and context.
-
-END_FORMAT
-
-FORMATTING GUIDELINES FOR READABILITY:
-- Use proper paragraph breaks between different points within each section
-- Add blank lines between major concepts for visual clarity
-- Write in clear, flowing prose that's easy to read
-- Organize content logically within each section
-- Ensure each section has substantial, well-structured content
-
-CRITICAL REMINDERS:
-- Use ONLY the exact section headers shown above (GRAMMAR_ANALYSIS:, GRAMMAR_CORRECTION:, KEYWORD_ANALYSIS:, CHINESE_DEFINITION:, END_FORMAT)
-- Do NOT add numbers, bullets, or extra formatting to the headers
-- Do NOT add extra text before or after the required sections
-- Each section must contain substantial content (minimum 20 characters for analysis sections)
-- Focus on clarity, readability, and proper formatting within sections
-
-Sentence to analyze: "${sentence}"`;
-        } else {
-            // Pure English explanation
-            return `You are an English language tutor and grammar expert.
-
-CRITICAL FORMATTING REQUIREMENT: You MUST use the EXACT format shown below. Do NOT deviate from this format. Do NOT add extra formatting, numbering, or bullet points in the section headers. Each section must start with the exact marker shown and contain only the content requested.
-
-SENTENCE TO ANALYZE: "${sentence}"
-
-MANDATORY OUTPUT FORMAT (follow EXACTLY):
+Follow this exact format (Output Example):
 
 GRAMMAR_ANALYSIS:
-Provide comprehensive grammar analysis covering overall sentence structure and correctness, grammar rules that apply or are violated, detailed explanation of each grammatical element, and educational insights about the grammar used. 
+This sentence follows a simple subject-verb-object (SVO) structure, which is the most common sentence pattern in English.
 
-Provide the explanation in clear, comprehensive English only. 
+**Subject Analysis**: "She" is a third-person singular pronoun that serves as the subject of the sentence. It refers to a female person who is performing the action.
 
-Organize your analysis clearly with proper paragraph breaks for readability. Use natural flowing text without numbered lists or bullet points within this section.
+**Verb Analysis**: "reads" is the main verb in simple present tense. It shows a habitual or regular action. Since the subject is third-person singular ("she"), the verb correctly takes the "-s" ending, demonstrating proper subject-verb agreement.
+
+**Object Analysis**: "books" is a plural noun that functions as the direct object. It receives the action of the verb "reads" and tells us what she is reading.
+
+**Grammar Rules Demonstrated**: This sentence shows correct subject-verb agreement (she reads, not she read), proper use of simple present tense for habitual actions, and clear direct object placement.
 
 GRAMMAR_CORRECTION:
-If there are any grammar errors, provide the corrected sentence here. If the sentence is already correct, write "The sentence is grammatically correct." and provide an alternative or improved version if possible.
+The sentence is grammatically correct and needs no changes.
+
+However, for variety, you could also say: "She reads novels" or "She enjoys reading books" to add more specificity or express the action differently.
 
 KEYWORD_ANALYSIS:
-Analyze the key words and phrases in the sentence including important vocabulary and their functions, phrases and their meanings, word choice analysis, and suggestions for vocabulary enhancement. 
+**"She"** - This is a personal pronoun in the third person singular form. It's used to refer to a female person without repeating her name. In this sentence, it functions as the subject who performs the action.
 
-Present this analysis in clear, well-organized paragraphs with proper spacing for easy reading.
+**"reads"** - This is a regular verb in the simple present tense with the third-person singular "-s" ending. It describes the action of looking at written words and understanding their meaning. The present tense suggests this is a habitual or regular activity.
+
+**"books"** - This is a plural countable noun that serves as the direct object. The plural form "books" (instead of "book") suggests she reads multiple books or reading books in general as an activity.
+
+**Overall**: This sentence uses simple, common vocabulary that's perfect for everyday communication about reading habits.
 
 CHINESE_DEFINITION:
-Provide a natural and accurate Chinese translation/definition of the sentence, explaining the meaning and context.
+她读书。
 
-END_FORMAT
+This Chinese translation captures the essence of the English sentence. "她" means "she," "读" means "to read," and "书" means "book/books." In Chinese, the plural form is often implied by context rather than explicitly marked.
 
-FORMATTING GUIDELINES FOR READABILITY:
-- Use proper paragraph breaks between different points within each section
-- Add blank lines between major concepts for visual clarity
-- Write in clear, flowing prose that's easy to read
-- Organize content logically within each section
-- Ensure each section has substantial, well-structured content
-
-CRITICAL REMINDERS:
-- Use ONLY the exact section headers shown above (GRAMMAR_ANALYSIS:, GRAMMAR_CORRECTION:, KEYWORD_ANALYSIS:, CHINESE_DEFINITION:, END_FORMAT)
-- Do NOT add numbers, bullets, or extra formatting to the headers
-- Do NOT add extra text before or after the required sections
-- Each section must contain substantial content (minimum 20 characters for analysis sections)
-- Focus on clarity, readability, and proper formatting within sections
-
-Sentence to analyze: "${sentence}"`;
-        }
+END_FORMAT`;
     }
 
     /**
@@ -409,89 +360,39 @@ Sentence to analyze: "${sentence}"`;
      * @returns {string} Structured prompt
      */
     createStructuredPrompt(cleanedWords, grammarLanguageOption) {
-        if (grammarLanguageOption === 'combined') {
-            // Combined Chinese and English explanation (default)
-            return `You are an English language tutor. Create a single natural sentence that incorporates ALL of the following words: ${cleanedWords.join(', ')}
+        const isEnglishOnly = grammarLanguageOption === 'pure';
+        const languageInstruction = isEnglishOnly 
+            ? "Provide explanations in English only." 
+            : "Provide explanations in both English and Chinese.";
 
-CRITICAL FORMATTING REQUIREMENT: You MUST use the EXACT format shown below. Do NOT deviate from this format. Do NOT add extra formatting, numbering, or bullet points in the section headers. Each section must start with the exact marker shown and contain only the content requested.
+        return `Create a natural sentence using ALL these words: ${cleanedWords.join(', ')}
 
-MANDATORY OUTPUT FORMAT (follow EXACTLY):
+${languageInstruction}
 
-SENTENCE:
-Write a single, grammatically correct sentence using ALL the provided words naturally.
-
-GRAMMAR_ANALYSIS:
-Provide detailed grammar explanation covering sentence structure (subject, predicate, objects, etc.), how each word functions in the sentence, grammar rules demonstrated, and educational insights about word usage. 
-
-Provide the explanation in both English and Chinese for better understanding, with key grammar terms explained in both languages. 
-
-Organize your analysis clearly with proper paragraph breaks for readability. Use natural flowing text without numbered lists or bullet points within this section.
-
-CHINESE_TRANSLATION:
-Provide a natural and accurate Chinese translation of the sentence, maintaining the meaning and context.
-
-END_FORMAT
-
-FORMATTING GUIDELINES FOR READABILITY:
-- Use proper paragraph breaks between different points within each section
-- Add blank lines between major concepts for visual clarity
-- Write in clear, flowing prose that's easy to read
-- Organize content logically within each section
-- Ensure each section has substantial, well-structured content
-
-CRITICAL REMINDERS:
-- Use ALL provided words: ${cleanedWords.join(', ')}
-- Use ONLY the exact section headers shown above (SENTENCE:, GRAMMAR_ANALYSIS:, CHINESE_TRANSLATION:, END_FORMAT)
-- Do NOT add numbers, bullets, or extra formatting to the headers
-- Do NOT add extra text before or after the required sections
-- The sentence must be natural and meaningful
-- Grammar analysis must be detailed and educational, provided in both English and Chinese
-- Chinese translation must be accurate and natural
-- Focus on clarity, readability, and proper formatting within sections
-
-Words to include: ${cleanedWords.join(', ')}`;
-        } else {
-            // Pure English explanation
-            return `You are an English language tutor. Create a single natural sentence that incorporates ALL of the following words: ${cleanedWords.join(', ')}
-
-CRITICAL FORMATTING REQUIREMENT: You MUST use the EXACT format shown below. Do NOT deviate from this format. Do NOT add extra formatting, numbering, or bullet points in the section headers. Each section must start with the exact marker shown and contain only the content requested.
-
-MANDATORY OUTPUT FORMAT (follow EXACTLY):
+Follow this exact format (Output Example):
 
 SENTENCE:
-Write a single, grammatically correct sentence using ALL the provided words naturally.
+The quick brown fox jumps over the lazy dog.
 
 GRAMMAR_ANALYSIS:
-Provide detailed grammar explanation covering sentence structure (subject, predicate, objects, etc.), how each word functions in the sentence, grammar rules demonstrated, and educational insights about word usage. 
+This sentence demonstrates a clear subject-verb-object structure with additional descriptive elements.
 
-Provide the explanation in clear, comprehensive English only. 
+**Subject**: "The quick brown fox" - This is a noun phrase where "fox" is the main noun (subject), and "quick" and "brown" are adjectives that describe the fox. The definite article "the" specifies which fox we're talking about.
 
-Organize your analysis clearly with proper paragraph breaks for readability. Use natural flowing text without numbered lists or bullet points within this section.
+**Verb**: "jumps" - This is an action verb in simple present tense, third-person singular form. It describes the physical action the fox is performing.
+
+**Prepositional Phrase**: "over the lazy dog" - This phrase starts with the preposition "over," showing the spatial relationship of the jumping action. "The lazy dog" is the object of the preposition, where "dog" is the noun and "lazy" is an adjective describing the dog.
+
+**Grammar Concepts**: This sentence shows proper adjective placement (before nouns), correct article usage ("the"), subject-verb agreement (fox jumps), and effective use of prepositional phrases to add detail and show relationships between elements.
+
+**Sentence Type**: This is a declarative sentence making a factual statement about an action.
 
 CHINESE_TRANSLATION:
-Provide a natural and accurate Chinese translation of the sentence, maintaining the meaning and context.
+敏捷的棕色狐狸跳过了懒惰的狗。
 
-END_FORMAT
+In this Chinese translation: "敏捷的" means "quick/agile," "棕色" means "brown," "狐狸" means "fox," "跳过了" means "jumped over" (past tense), and "懒惰的狗" means "lazy dog." Chinese uses "了" to indicate completed action.
 
-FORMATTING GUIDELINES FOR READABILITY:
-- Use proper paragraph breaks between different points within each section
-- Add blank lines between major concepts for visual clarity
-- Write in clear, flowing prose that's easy to read
-- Organize content logically within each section
-- Ensure each section has substantial, well-structured content
-
-CRITICAL REMINDERS:
-- Use ALL provided words: ${cleanedWords.join(', ')}
-- Use ONLY the exact section headers shown above (SENTENCE:, GRAMMAR_ANALYSIS:, CHINESE_TRANSLATION:, END_FORMAT)
-- Do NOT add numbers, bullets, or extra formatting to the headers
-- Do NOT add extra text before or after the required sections
-- The sentence must be natural and meaningful
-- Grammar analysis must be detailed and educational, provided in English only
-- Chinese translation must be accurate and natural
-- Focus on clarity, readability, and proper formatting within sections
-
-Words to include: ${cleanedWords.join(', ')}`;
-        }
+END_FORMAT`;
     }
 
     /**
