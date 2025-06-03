@@ -42,12 +42,21 @@ exports.generateSentence = async (req, res) => {
     // Generate sentence using AI with the Java-inspired service
     let aiResult;
     try {
-      aiResult = await aiService.generateSentence(words, req.user.id, [], maxRetries, grammarLanguageOption, req.locale);
+      aiResult = await aiService.generateSentence(words, req.user.id, [], grammarLanguageOption, req.locale);
     } catch (aiError) {
       return res.status(500).json({
         success: false,
-        message: req.t('ai.generationFailed', { message: aiError.message }),
-        retryInfo: aiError.retryInfo || null
+        message: req.t('ai.generationFailed', { message: aiError.message })
+      });
+    }
+
+    // Check if AI generation was successful
+    if (!aiResult.success) {
+      return res.status(400).json({
+        success: false,
+        message: aiResult.message || req.t('ai.generationFailed', { message: 'Unknown error' }),
+        retryable: aiResult.retryable || false,
+        error: aiResult.error
       });
     }
 
@@ -59,6 +68,7 @@ exports.generateSentence = async (req, res) => {
       explanation: aiResult.explanation,
       chineseTranslation: aiResult.chineseTranslation,
       thinkingText: aiResult.thinking, // Support for QwQ reasoning
+      rawResponseContent: aiResult.rawResponse ? JSON.stringify(aiResult.rawResponse) : null,
       isPublic: isPublic !== false, // default to true if not specified
       aiModel: aiResult.aiModel || 'Qwen/QwQ-32B'
     });
@@ -78,7 +88,7 @@ exports.generateSentence = async (req, res) => {
     res.status(201).json({
       success: true,
       generation,
-      retryInfo: aiResult.retryInfo || null
+      partialParse: aiResult.partialParse || false
     });
   } catch (error) {
     console.error('Generation error:', error);

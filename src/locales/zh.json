@@ -123,7 +123,9 @@
     "grammarCorrectionTooShort": "语法修正部分过短或为空",
     "keywordAnalysisTooShort": "关键词分析部分过短或为空",
     "chineseDefinitionTooShort": "中文定义部分过短或为空",
-    "parseError": "解析错误：{{message}}"
+    "parseError": "解析错误：{{message}}",
+    "noValidMarkers": "AI响应中未找到有效的格式标记",
+    "noValidContent": "无法从AI响应中提取有效内容"
   },
   "apiKey": {
     "title": "AI配置",

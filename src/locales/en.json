@@ -123,7 +123,9 @@
     "grammarCorrectionTooShort": "Grammar correction section is too short or empty",
     "keywordAnalysisTooShort": "Keyword analysis section is too short or empty",
     "chineseDefinitionTooShort": "Chinese definition section is too short or empty",
-    "parseError": "Parse error: {{message}}"
+    "parseError": "Parse error: {{message}}",
+    "noValidMarkers": "No valid format markers found in AI response",
+    "noValidContent": "No valid content could be extracted from AI response"
   },
   "apiKey": {
     "title": "AI Configuration",

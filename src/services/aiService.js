@@ -38,7 +38,7 @@ class AIService {
             requestSystemField: "system",
 
             headers: {'Content-Type': 'application/json'},
-            timeout: 30000
+            timeout: 180000
         };
 
         // Response format configuration for generation
@@ -96,12 +96,11 @@ class AIService {
      * Check sentence using AI with platform configuration
      * @param {string} sentence - Sentence to check
      * @param {string} userId - User ID (optional)
-     * @param {number} maxRetries - Maximum retry attempts (default: 3)
      * @param {string} grammarLanguageOption - Grammar explanation language option ('combined' or 'pure')
      * @param {string} locale - Locale for error messages (default: 'en')
-     * @returns {Object} Sentence check result with retry info
+     * @returns {Object} Sentence check result
      */
-    async checkSentence(sentence, userId = null, maxRetries = 3, grammarLanguageOption = 'combined', locale = 'en') {
+    async checkSentence(sentence, userId = null, grammarLanguageOption = 'combined', locale = 'en') {
         // Validate sentence first
         this.validateSentence(sentence);
 
@@ -112,89 +111,109 @@ class AIService {
             throw new Error('No API key available. Please contact administrator or provide your own API key.');
         }
 
-        let attempt = 0;
-        let lastError = null;
+        try {
+            // Create structured prompt for sentence checking
+            const prompt = this.createSentenceCheckPrompt(sentence, grammarLanguageOption);
 
-        while (attempt < maxRetries) {
-            attempt++;
-            
-            try {
-                // Create structured prompt for sentence checking
-                const prompt = this.createSentenceCheckPrompt(sentence, grammarLanguageOption);
+            // Prepare request data using configuration
+            const {headers, requestBody} = HttpUtils.prepareRequestData(
+                aiConfig,
+                prompt,
+                [] // No conversation history for sentence checking
+            );
 
-                // Prepare request data using configuration
-                const {headers, requestBody} = HttpUtils.prepareRequestData(
-                    aiConfig,
-                    prompt,
-                    [] // No conversation history for sentence checking
-                );
+            // Make HTTP request
+            const response = await axios.post(aiConfig.apiUrl, requestBody, {
+                headers,
+                timeout: aiConfig.timeout
+            });
 
-                // Make HTTP request
-                const response = await axios.post(aiConfig.apiUrl, requestBody, {
-                    headers,
-                    timeout: aiConfig.timeout
-                });
+            // Process response using configuration
+            const {content, thinking} = HttpUtils.processAiResponse(
+                JSON.stringify(response.data),
+                aiConfig
+            );
 
-                // Process response using configuration
-                const {content, thinking} = HttpUtils.processAiResponse(
-                    JSON.stringify(response.data),
-                    aiConfig
-                );
+            // Parse the structured response
+            const parsedResponse = this.parseSentenceCheckResponse(content, locale);
 
-                // Parse the structured response
-                const parsedResponse = this.parseSentenceCheckResponse(content, locale);
+            if (parsedResponse.isValid) {
+                return {
+                    success: true,
+                    grammarAnalysis: parsedResponse.grammarAnalysis,
+                    grammarCorrection: parsedResponse.grammarCorrection,
+                    keywordAnalysis: parsedResponse.keywordAnalysis,
+                    chineseDefinition: parsedResponse.chineseDefinition,
+                    aiModel: aiConfig.model,
+                    thinking: thinking,
+                    rawResponse: response.data
+                };
+            } else {
+                // Check if this is a partial parse that we should accept
+                const hasAnyUsefulContent = parsedResponse.grammarAnalysis || 
+                                          parsedResponse.grammarCorrection || 
+                                          parsedResponse.keywordAnalysis || 
+                                          parsedResponse.chineseDefinition;
 
-                if (parsedResponse.isValid) {
+                if (hasAnyUsefulContent) {
+                    // Accept partial parse if we have some useful content
                     return {
-                        grammarAnalysis: parsedResponse.grammarAnalysis,
-                        grammarCorrection: parsedResponse.grammarCorrection,
-                        keywordAnalysis: parsedResponse.keywordAnalysis,
-                        chineseDefinition: parsedResponse.chineseDefinition,
+                        success: true,
+                        grammarAnalysis: parsedResponse.grammarAnalysis || '',
+                        grammarCorrection: parsedResponse.grammarCorrection || '',
+                        keywordAnalysis: parsedResponse.keywordAnalysis || '',
+                        chineseDefinition: parsedResponse.chineseDefinition || '',
                         aiModel: aiConfig.model,
                         thinking: thinking,
                         rawResponse: response.data,
-                        retryInfo: {
-                            attempt: attempt,
-                            maxRetries: maxRetries,
-                            success: true
-                        }
+                        partialParse: true,
+                        parseError: parsedResponse.error
                     };
-                } else {
-                    // Invalid format, will retry if attempts remaining
-                    lastError = new Error(`Invalid response format on attempt ${attempt}: ${parsedResponse.error}`);
-                    if (attempt >= maxRetries) {
-                        throw lastError;
-                    }
-                    continue;
                 }
 
-            } catch (error) {
-                lastError = error;
-                
-                // Only retry for format errors, not for API errors
-                if (error.response?.status === 429) {
-                    throw new Error('Rate limit exceeded. Please try again later.');
-                } else if (error.response?.status === 401) {
-                    throw new Error('Invalid API key or authentication failed.');
-                } else if (error.code === 'ECONNABORTED') {
-                    throw new Error('Request timeout. Please try again.');
-                } else if (error.response?.status === 400) {
-                    throw new Error('Invalid request to AI API');
-                } else if (error.message.includes('Invalid response format')) {
-                    // Format error - continue retrying
-                    if (attempt >= maxRetries) {
-                        throw new Error(`Failed to get valid response format after ${maxRetries} attempts. Last error: ${error.message}`);
-                    }
-                    continue;
-                } else {
-                    // Other errors - don't retry
-                    throw new Error(`AI service error: ${error.message}`);
-                }
+                // Invalid format
+                return {
+                    success: false,
+                    message: `Invalid response format: ${parsedResponse.error}`,
+                    error: parsedResponse.error,
+                    rawResponse: response.data
+                };
+            }
+
+        } catch (error) {
+            // Handle different types of errors
+            if (error.response?.status === 429) {
+                return {
+                    success: false,
+                    message: 'Rate limit exceeded. Please try again later.',
+                    retryable: true
+                };
+            } else if (error.response?.status === 401) {
+                return {
+                    success: false,
+                    message: 'Invalid API key or authentication failed.',
+                    retryable: false
+                };
+            } else if (error.code === 'ECONNABORTED') {
+                return {
+                    success: false,
+                    message: 'Request timeout. Please try again.',
+                    retryable: true
+                };
+            } else if (error.response?.status === 400) {
+                return {
+                    success: false,
+                    message: 'Invalid request to AI API',
+                    retryable: false
+                };
+            } else {
+                return {
+                    success: false,
+                    message: `AI service error: ${error.message}`,
+                    retryable: true
+                };
             }
         }
-
-        // If we get here, all retries failed
-        throw lastError || new Error(`Failed to check sentence after ${maxRetries} attempts`);
     }
 
     /**
@@ -202,12 +221,11 @@ class AIService {
      * @param {Array} words - Array of words to include
      * @param {string} userId - User ID (optional)
      * @param {Array} conversationHistory - Previous messages (optional)
-     * @param {number} maxRetries - Maximum retry attempts (default: 3)
      * @param {string} grammarLanguageOption - Grammar explanation language option ('combined' or 'pure')
      * @param {string} locale - Locale for error messages (default: 'en')
-     * @returns {Object} Generated sentence and explanation with retry info
+     * @returns {Object} Generated sentence and explanation
      */
-    async generateSentence(words, userId = null, conversationHistory = [], maxRetries = 3, grammarLanguageOption = 'combined', locale = 'en') {
+    async generateSentence(words, userId = null, conversationHistory = [], grammarLanguageOption = 'combined', locale = 'en') {
         // Validate words first
         const cleanedWords = this.validateWords(words);
 
@@ -218,88 +236,106 @@ class AIService {
             throw new Error('No API key available. Please contact administrator or provide your own API key.');
         }
 
-        let attempt = 0;
-        let lastError = null;
+        try {
+            // Create structured prompt for consistent output format
+            const prompt = this.createStructuredPrompt(cleanedWords, grammarLanguageOption);
 
-        while (attempt < maxRetries) {
-            attempt++;
-            
-            try {
-                // Create structured prompt for consistent output format
-                const prompt = this.createStructuredPrompt(cleanedWords, grammarLanguageOption);
+            // Prepare request data using configuration
+            const {headers, requestBody} = HttpUtils.prepareRequestData(
+                aiConfig,
+                prompt,
+                conversationHistory
+            );
 
-                // Prepare request data using configuration
-                const {headers, requestBody} = HttpUtils.prepareRequestData(
-                    aiConfig,
-                    prompt,
-                    conversationHistory
-                );
+            // Make HTTP request
+            const response = await axios.post(aiConfig.apiUrl, requestBody, {
+                headers,
+                timeout: aiConfig.timeout
+            });
 
-                // Make HTTP request
-                const response = await axios.post(aiConfig.apiUrl, requestBody, {
-                    headers,
-                    timeout: aiConfig.timeout
-                });
+            // Process response using configuration
+            const {content, thinking} = HttpUtils.processAiResponse(
+                JSON.stringify(response.data),
+                aiConfig
+            );
 
-                // Process response using configuration
-                const {content, thinking} = HttpUtils.processAiResponse(
-                    JSON.stringify(response.data),
-                    aiConfig
-                );
+            // Parse the structured response
+            const parsedResponse = this.parseStructuredResponse(content, locale);
 
-                // Parse the structured response
-                const parsedResponse = this.parseStructuredResponse(content, locale);
+            if (parsedResponse.isValid) {
+                return {
+                    success: true,
+                    sentence: parsedResponse.sentence,
+                    explanation: parsedResponse.grammarAnalysis,
+                    chineseTranslation: parsedResponse.chineseTranslation,
+                    aiModel: aiConfig.model,
+                    thinking: thinking,
+                    rawResponse: response.data
+                };
+            } else {
+                // Check if this is a partial parse that we should accept
+                const hasAnyUsefulContent = parsedResponse.sentence || 
+                                          parsedResponse.grammarAnalysis || 
+                                          parsedResponse.chineseTranslation;
 
-                if (parsedResponse.isValid) {
+                if (hasAnyUsefulContent) {
+                    // Accept partial parse if we have some useful content
                     return {
-                        sentence: parsedResponse.sentence,
-                        explanation: parsedResponse.grammarAnalysis,
-                        chineseTranslation: parsedResponse.chineseTranslation,
+                        success: true,
+                        sentence: parsedResponse.sentence || '',
+                        explanation: parsedResponse.grammarAnalysis || '',
+                        chineseTranslation: parsedResponse.chineseTranslation || '',
                         aiModel: aiConfig.model,
                         thinking: thinking,
                         rawResponse: response.data,
-                        retryInfo: {
-                            attempt: attempt,
-                            maxRetries: maxRetries,
-                            success: true
-                        }
+                        partialParse: true,
+                        parseError: parsedResponse.error
                     };
-                } else {
-                    // Invalid format, will retry if attempts remaining
-                    lastError = new Error(`Invalid response format on attempt ${attempt}: ${parsedResponse.error}`);
-                    if (attempt >= maxRetries) {
-                        throw lastError;
-                    }
-                    continue;
                 }
 
-            } catch (error) {
-                lastError = error;
-                
-                // Only retry for format errors, not for API errors
-                if (error.response?.status === 429) {
-                    throw new Error('Rate limit exceeded. Please try again later.');
-                } else if (error.response?.status === 401) {
-                    throw new Error('Invalid API key or authentication failed.');
-                } else if (error.code === 'ECONNABORTED') {
-                    throw new Error('Request timeout. Please try again.');
-                } else if (error.response?.status === 400) {
-                    throw new Error('Invalid request to AI API');
-                } else if (error.message.includes('Invalid response format')) {
-                    // Format error - continue retrying
-                    if (attempt >= maxRetries) {
-                        throw new Error(`Failed to get valid response format after ${maxRetries} attempts. Last error: ${error.message}`);
-                    }
-                    continue;
-                } else {
-                    // Other errors - don't retry
-                    throw new Error(`AI service error: ${error.message}`);
-                }
+                // Invalid format
+                return {
+                    success: false,
+                    message: `Invalid response format: ${parsedResponse.error}`,
+                    error: parsedResponse.error,
+                    rawResponse: response.data
+                };
+            }
+
+        } catch (error) {
+            // Handle different types of errors
+            if (error.response?.status === 429) {
+                return {
+                    success: false,
+                    message: 'Rate limit exceeded. Please try again later.',
+                    retryable: true
+                };
+            } else if (error.response?.status === 401) {
+                return {
+                    success: false,
+                    message: 'Invalid API key or authentication failed.',
+                    retryable: false
+                };
+            } else if (error.code === 'ECONNABORTED') {
+                return {
+                    success: false,
+                    message: 'Request timeout. Please try again.',
+                    retryable: true
+                };
+            } else if (error.response?.status === 400) {
+                return {
+                    success: false,
+                    message: 'Invalid request to AI API',
+                    retryable: false
+                };
+            } else {
+                return {
+                    success: false,
+                    message: `AI service error: ${error.message}`,
+                    retryable: true
+                };
             }
         }
-
-        // If we get here, all retries failed
-        throw lastError || new Error(`Failed to generate sentence after ${maxRetries} attempts`);
     }
 
     /**
@@ -310,8 +346,8 @@ class AIService {
      */
     createSentenceCheckPrompt(sentence, grammarLanguageOption) {
         const isEnglishOnly = grammarLanguageOption === 'pure';
-        const languageInstruction = isEnglishOnly 
-            ? "Provide explanations in English only." 
+        const languageInstruction = isEnglishOnly
+            ? "Provide explanations in English only."
             : "Provide explanations in both English and Chinese.";
 
         return `Analyze this sentence: "${sentence}"
@@ -320,7 +356,7 @@ ${languageInstruction}
 
 Follow this exact format (Output Example):
 
-GRAMMAR_ANALYSIS:
+GRAMMAR_ANALYSIS(Parsing required):
 This sentence follows a simple subject-verb-object (SVO) structure, which is the most common sentence pattern in English.
 
 **Subject Analysis**: "She" is a third-person singular pronoun that serves as the subject of the sentence. It refers to a female person who is performing the action.
@@ -331,12 +367,12 @@ This sentence follows a simple subject-verb-object (SVO) structure, which is the
 
 **Grammar Rules Demonstrated**: This sentence shows correct subject-verb agreement (she reads, not she read), proper use of simple present tense for habitual actions, and clear direct object placement.
 
-GRAMMAR_CORRECTION:
+GRAMMAR_CORRECTION(Parsing required):
 The sentence is grammatically correct and needs no changes.
 
 However, for variety, you could also say: "She reads novels" or "She enjoys reading books" to add more specificity or express the action differently.
 
-KEYWORD_ANALYSIS:
+KEYWORD_ANALYSIS(Parsing required):
 **"She"** - This is a personal pronoun in the third person singular form. It's used to refer to a female person without repeating her name. In this sentence, it functions as the subject who performs the action.
 
 **"reads"** - This is a regular verb in the simple present tense with the third-person singular "-s" ending. It describes the action of looking at written words and understanding their meaning. The present tense suggests this is a habitual or regular activity.
@@ -345,12 +381,12 @@ KEYWORD_ANALYSIS:
 
 **Overall**: This sentence uses simple, common vocabulary that's perfect for everyday communication about reading habits.
 
-CHINESE_DEFINITION:
+CHINESE_DEFINITION(Parsing required):
 她读书。
 
 This Chinese translation captures the essence of the English sentence. "她" means "she," "读" means "to read," and "书" means "book/books." In Chinese, the plural form is often implied by context rather than explicitly marked.
 
-END_FORMAT`;
+END_FORMAT(Parsing required)`;
     }
 
     /**
@@ -361,8 +397,8 @@ END_FORMAT`;
      */
     createStructuredPrompt(cleanedWords, grammarLanguageOption) {
         const isEnglishOnly = grammarLanguageOption === 'pure';
-        const languageInstruction = isEnglishOnly 
-            ? "Provide explanations in English only." 
+        const languageInstruction = isEnglishOnly
+            ? "Provide explanations in English only."
             : "Provide explanations in both English and Chinese.";
 
         return `Create a natural sentence using ALL these words: ${cleanedWords.join(', ')}
@@ -371,10 +407,10 @@ ${languageInstruction}
 
 Follow this exact format (Output Example):
 
-SENTENCE:
+SENTENCE(Parsing required):
 The quick brown fox jumps over the lazy dog.
 
-GRAMMAR_ANALYSIS:
+GRAMMAR_ANALYSIS(Parsing required):
 This sentence demonstrates a clear subject-verb-object structure with additional descriptive elements.
 
 **Subject**: "The quick brown fox" - This is a noun phrase where "fox" is the main noun (subject), and "quick" and "brown" are adjectives that describe the fox. The definite article "the" specifies which fox we're talking about.
@@ -387,266 +423,361 @@ This sentence demonstrates a clear subject-verb-object structure with additional
 
 **Sentence Type**: This is a declarative sentence making a factual statement about an action.
 
-CHINESE_TRANSLATION:
+CHINESE_TRANSLATION(Parsing required):
 敏捷的棕色狐狸跳过了懒惰的狗。
 
 In this Chinese translation: "敏捷的" means "quick/agile," "棕色" means "brown," "狐狸" means "fox," "跳过了" means "jumped over" (past tense), and "懒惰的狗" means "lazy dog." Chinese uses "了" to indicate completed action.
 
-END_FORMAT`;
+END_FORMAT(Parsing required)`;
     }
 
     /**
-     * Parse structured sentence check AI response
+     * Parse structured sentence check AI response with robust error handling
      * @param {string} content - AI response content
      * @param {string} locale - Locale for error messages (default: 'en')
      * @returns {Object} Parsed response with validation
      */
     parseSentenceCheckResponse(content, locale = 'en') {
         try {
-            const { grammarAnalysisMarker, grammarCorrectionMarker, keywordAnalysisMarker, chineseDefinitionMarker, endMarker } = this.checkResponseFormat;
-            
-            // Check if all required markers are present
-            const missingMarkers = [];
-            if (!content.includes(grammarAnalysisMarker)) missingMarkers.push(grammarAnalysisMarker);
-            if (!content.includes(grammarCorrectionMarker)) missingMarkers.push(grammarCorrectionMarker);
-            if (!content.includes(keywordAnalysisMarker)) missingMarkers.push(keywordAnalysisMarker);
-            if (!content.includes(chineseDefinitionMarker)) missingMarkers.push(chineseDefinitionMarker);
-            
-            if (missingMarkers.length > 0) {
-                return {
-                    isValid: false,
-                    error: i18n.t('ai.missingFormatMarkers', locale, { 
-                        markers: missingMarkers.join(', ')
-                    }) + ` | Response preview: "${content.substring(0, 200)}..."`,
-                    grammarAnalysis: '',
-                    grammarCorrection: '',
-                    keywordAnalysis: '',
-                    chineseDefinition: ''
-                };
+            const {
+                grammarAnalysisMarker,
+                grammarCorrectionMarker,
+                keywordAnalysisMarker,
+                chineseDefinitionMarker,
+                endMarker
+            } = this.checkResponseFormat;
+
+            // Store original raw content for fallback
+            const rawContent = content;
+
+            // Clean up content - remove "(Parsing required)" and other unwanted text
+            let cleanedContent = this.cleanResponseContent(content);
+
+            // Add END_FORMAT if missing but other markers are present
+            if (!cleanedContent.includes(endMarker)) {
+                const hasOtherMarkers = [
+                    grammarAnalysisMarker,
+                    grammarCorrectionMarker,
+                    keywordAnalysisMarker,
+                    chineseDefinitionMarker
+                ].some(marker => cleanedContent.includes(marker));
+
+                if (hasOtherMarkers) {
+                    cleanedContent += `\n\n${endMarker}`;
+                }
             }
 
-            // Verify marker order
-            const grammarAnalysisIndex = content.indexOf(grammarAnalysisMarker);
-            const grammarCorrectionIndex = content.indexOf(grammarCorrectionMarker);
-            const keywordAnalysisIndex = content.indexOf(keywordAnalysisMarker);
-            const chineseDefinitionIndex = content.indexOf(chineseDefinitionMarker);
-
-            if (grammarAnalysisIndex >= grammarCorrectionIndex || 
-                grammarCorrectionIndex >= keywordAnalysisIndex || 
-                keywordAnalysisIndex >= chineseDefinitionIndex) {
-                return {
-                    isValid: false,
-                    error: i18n.t('ai.invalidMarkerOrder', locale, { 
-                        expected: 'GRAMMAR_ANALYSIS → GRAMMAR_CORRECTION → KEYWORD_ANALYSIS → CHINESE_DEFINITION' 
-                    }) + ` | Found order: GA:${grammarAnalysisIndex}, GC:${grammarCorrectionIndex}, KA:${keywordAnalysisIndex}, CD:${chineseDefinitionIndex}`,
-                    grammarAnalysis: '',
-                    grammarCorrection: '',
-                    keywordAnalysis: '',
-                    chineseDefinition: ''
-                };
-            }
-
-            // Extract grammar analysis section
-            const grammarAnalysisStart = grammarAnalysisIndex + grammarAnalysisMarker.length;
-            const grammarAnalysisSection = content.substring(grammarAnalysisStart, grammarCorrectionIndex).trim();
-            
-            // Extract grammar correction section
-            const grammarCorrectionStart = grammarCorrectionIndex + grammarCorrectionMarker.length;
-            const grammarCorrectionSection = content.substring(grammarCorrectionStart, keywordAnalysisIndex).trim();
-
-            // Extract keyword analysis section  
-            const keywordAnalysisStart = keywordAnalysisIndex + keywordAnalysisMarker.length;
-            const keywordAnalysisSection = content.substring(keywordAnalysisStart, chineseDefinitionIndex).trim();
-
-            // Extract Chinese definition section
-            const chineseDefinitionStart = chineseDefinitionIndex + chineseDefinitionMarker.length;
-            const endFormatIndex = content.indexOf(endMarker);
-            
-            let chineseDefinitionSection;
-            if (endFormatIndex !== -1) {
-                chineseDefinitionSection = content.substring(chineseDefinitionStart, endFormatIndex).trim();
-            } else {
-                chineseDefinitionSection = content.substring(chineseDefinitionStart).trim();
-            }
-
-            // Validate extracted content with specific error messages
-            if (!grammarAnalysisSection || grammarAnalysisSection.length < 20) {
-                return {
-                    isValid: false,
-                    error: i18n.t('ai.grammarAnalysisTooShort', locale) + ` | Length: ${grammarAnalysisSection.length}, Content: "${grammarAnalysisSection.substring(0, 100)}..."`,
-                    grammarAnalysis: '',
-                    grammarCorrection: '',
-                    keywordAnalysis: '',
-                    chineseDefinition: ''
-                };
-            }
-
-            if (!grammarCorrectionSection || grammarCorrectionSection.length < 10) {
-                return {
-                    isValid: false,
-                    error: i18n.t('ai.grammarCorrectionTooShort', locale) + ` | Length: ${grammarCorrectionSection.length}, Content: "${grammarCorrectionSection.substring(0, 100)}..."`,
-                    grammarAnalysis: '',
-                    grammarCorrection: '',
-                    keywordAnalysis: '',
-                    chineseDefinition: ''
-                };
-            }
-
-            if (!keywordAnalysisSection || keywordAnalysisSection.length < 20) {
-                return {
-                    isValid: false,
-                    error: i18n.t('ai.keywordAnalysisTooShort', locale) + ` | Length: ${keywordAnalysisSection.length}, Content: "${keywordAnalysisSection.substring(0, 100)}..."`,
-                    grammarAnalysis: '',
-                    grammarCorrection: '',
-                    keywordAnalysis: '',
-                    chineseDefinition: ''
-                };
-            }
-
-            if (!chineseDefinitionSection || chineseDefinitionSection.length < 10) {
-                return {
-                    isValid: false,
-                    error: i18n.t('ai.chineseDefinitionTooShort', locale) + ` | Length: ${chineseDefinitionSection.length}, Content: "${chineseDefinitionSection.substring(0, 100)}..."`,
-                    grammarAnalysis: '',
-                    grammarCorrection: '',
-                    keywordAnalysis: '',
-                    chineseDefinition: ''
-                };
-            }
-
-            return {
-                isValid: true,
-                grammarAnalysis: grammarAnalysisSection,
-                grammarCorrection: grammarCorrectionSection,
-                keywordAnalysis: keywordAnalysisSection,
-                chineseDefinition: chineseDefinitionSection,
-                error: null
+            // Track which markers are present
+            const markerPresence = {
+                grammarAnalysis: cleanedContent.includes(grammarAnalysisMarker),
+                grammarCorrection: cleanedContent.includes(grammarCorrectionMarker),
+                keywordAnalysis: cleanedContent.includes(keywordAnalysisMarker),
+                chineseDefinition: cleanedContent.includes(chineseDefinitionMarker)
             };
+
+            const presentMarkers = Object.values(markerPresence).filter(Boolean).length;
+
+            // If no markers are present, this is a complete failure
+            if (presentMarkers === 0) {
+                return {
+                    isValid: false,
+                    error: i18n.t('ai.noValidMarkers', locale) + ` | Response preview: "${cleanedContent.substring(0, 200)}..."`,
+                    grammarAnalysis: '',
+                    grammarCorrection: '',
+                    keywordAnalysis: '',
+                    chineseDefinition: '',
+                    rawResponseContent: rawContent // Always include raw content on parse failure
+                };
+            }
+
+            // Extract content sections using robust parsing
+            const sections = this.extractSectionsRobust(cleanedContent, {
+                grammarAnalysisMarker,
+                grammarCorrectionMarker,
+                keywordAnalysisMarker,
+                chineseDefinitionMarker,
+                endMarker
+            });
+
+            // Validate that at least some meaningful content was extracted
+            const hasValidContent = Object.values(sections).some(section => 
+                section && section.length >= 10
+            );
+
+            if (!hasValidContent) {
+                return {
+                    isValid: false,
+                    error: i18n.t('ai.noValidContent', locale) + ` | Extracted sections lengths: GA:${sections.grammarAnalysis?.length || 0}, GC:${sections.grammarCorrection?.length || 0}, KA:${sections.keywordAnalysis?.length || 0}, CD:${sections.chineseDefinition?.length || 0}`,
+                    grammarAnalysis: '',
+                    grammarCorrection: '',
+                    keywordAnalysis: '',
+                    chineseDefinition: '',
+                    rawResponseContent: rawContent // Always include raw content on parse failure
+                };
+            }
+
+            // Determine if we should include raw content (for partial parses or debugging)
+            const isPartialParse = presentMarkers < 4;
+            const hasAnyMissingContent = Object.values(sections).some(section => !section || section.length < 10);
+
+            // Return successfully parsed content, even if some sections are missing
+            const result = {
+                isValid: true,
+                grammarAnalysis: sections.grammarAnalysis || '',
+                grammarCorrection: sections.grammarCorrection || '',
+                keywordAnalysis: sections.keywordAnalysis || '',
+                chineseDefinition: sections.chineseDefinition || '',
+                error: null,
+                partialParse: isPartialParse, // Indicate if this was a partial parse
+                missingMarkers: Object.entries(markerPresence)
+                    .filter(([_, present]) => !present)
+                    .map(([marker, _]) => marker)
+            };
+
+            // Include raw content if it's a partial parse or has missing content for debugging
+            if (isPartialParse || hasAnyMissingContent) {
+                result.rawResponseContent = rawContent;
+            }
+
+            return result;
 
         } catch (error) {
             return {
                 isValid: false,
-                error: i18n.t('ai.parseError', locale, { message: error.message }) + ` | Response preview: "${content.substring(0, 200)}..."`,
+                error: i18n.t('ai.parseError', locale, {message: error.message}) + ` | Response preview: "${content.substring(0, 200)}..."`,
                 grammarAnalysis: '',
                 grammarCorrection: '',
                 keywordAnalysis: '',
-                chineseDefinition: ''
+                chineseDefinition: '',
+                rawResponseContent: content // Always include raw content on exception
             };
         }
     }
 
     /**
-     * Parse structured AI response to extract sentence and grammar analysis
+     * Parse structured AI response to extract sentence and grammar analysis with robust error handling
      * @param {string} content - AI response content
      * @param {string} locale - Locale for error messages (default: 'en')
      * @returns {Object} Parsed response with validation
      */
     parseStructuredResponse(content, locale = 'en') {
         try {
-            const { sentenceMarker, grammarMarker, chineseMarker, endMarker } = this.responseFormat;
-            
-            // Check if all required markers are present
-            const missingMarkers = [];
-            if (!content.includes(sentenceMarker)) missingMarkers.push(sentenceMarker);
-            if (!content.includes(grammarMarker)) missingMarkers.push(grammarMarker);
-            if (!content.includes(chineseMarker)) missingMarkers.push(chineseMarker);
-            
-            if (missingMarkers.length > 0) {
-                return {
-                    isValid: false,
-                    error: i18n.t('ai.missingFormatMarkers', locale, { 
-                        markers: missingMarkers.join(', ')
-                    }) + ` | Response preview: "${content.substring(0, 200)}..."`,
-                    sentence: '',
-                    grammarAnalysis: '',
-                    chineseTranslation: ''
-                };
+            const {sentenceMarker, grammarMarker, chineseMarker, endMarker} = this.responseFormat;
+
+            // Store original raw content for fallback
+            const rawContent = content;
+
+            // Clean up content - remove "(Parsing required)" and other unwanted text
+            let cleanedContent = this.cleanResponseContent(content);
+
+            // Add END_FORMAT if missing but other markers are present
+            if (!cleanedContent.includes(endMarker)) {
+                const hasOtherMarkers = [sentenceMarker, grammarMarker, chineseMarker]
+                    .some(marker => cleanedContent.includes(marker));
+
+                if (hasOtherMarkers) {
+                    cleanedContent += `\n\n${endMarker}`;
+                }
             }
 
-            // Verify marker order
-            const sentenceIndex = content.indexOf(sentenceMarker);
-            const grammarIndex = content.indexOf(grammarMarker);
-            const chineseIndex = content.indexOf(chineseMarker);
-
-            if (sentenceIndex >= grammarIndex || grammarIndex >= chineseIndex) {
-                return {
-                    isValid: false,
-                    error: i18n.t('ai.invalidMarkerOrder', locale, { 
-                        expected: 'SENTENCE → GRAMMAR_ANALYSIS → CHINESE_TRANSLATION' 
-                    }) + ` | Found order: S:${sentenceIndex}, GA:${grammarIndex}, CT:${chineseIndex}`,
-                    sentence: '',
-                    grammarAnalysis: '',
-                    chineseTranslation: ''
-                };
-            }
-
-            // Extract sentence section
-            const sentenceStart = sentenceIndex + sentenceMarker.length;
-            const sentenceSection = content.substring(sentenceStart, grammarIndex).trim();
-            
-            // Extract grammar analysis section
-            const grammarAnalysisStart = grammarIndex + grammarMarker.length;
-            const grammarSection = content.substring(grammarAnalysisStart, chineseIndex).trim();
-
-            // Extract Chinese translation section
-            const chineseTranslationStart = chineseIndex + chineseMarker.length;
-            const endFormatIndex = content.indexOf(endMarker);
-            
-            let chineseTranslationSection;
-            if (endFormatIndex !== -1) {
-                chineseTranslationSection = content.substring(chineseTranslationStart, endFormatIndex).trim();
-            } else {
-                chineseTranslationSection = content.substring(chineseTranslationStart).trim();
-            }
-
-            // Validate extracted content with specific error messages
-            if (!sentenceSection || sentenceSection.length < 10) {
-                return {
-                    isValid: false,
-                    error: i18n.t('ai.sentenceSectionTooShort', locale) + ` | Length: ${sentenceSection.length}, Content: "${sentenceSection.substring(0, 100)}..."`,
-                    sentence: '',
-                    grammarAnalysis: '',
-                    chineseTranslation: ''
-                };
-            }
-
-            if (!grammarSection || grammarSection.length < 20) {
-                return {
-                    isValid: false,
-                    error: i18n.t('ai.grammarAnalysisTooShort', locale) + ` | Length: ${grammarSection.length}, Content: "${grammarSection.substring(0, 100)}..."`,
-                    sentence: '',
-                    grammarAnalysis: '',
-                    chineseTranslation: ''
-                };
-            }
-
-            if (!chineseTranslationSection || chineseTranslationSection.length < 10) {
-                return {
-                    isValid: false,
-                    error: i18n.t('ai.chineseTranslationTooShort', locale) + ` | Length: ${chineseTranslationSection.length}, Content: "${chineseTranslationSection.substring(0, 100)}..."`,
-                    sentence: '',
-                    grammarAnalysis: '',
-                    chineseTranslation: ''
-                };
-            }
-
-            return {
-                isValid: true,
-                sentence: sentenceSection,
-                grammarAnalysis: grammarSection,
-                chineseTranslation: chineseTranslationSection,
-                error: null
+            // Track which markers are present
+            const markerPresence = {
+                sentence: cleanedContent.includes(sentenceMarker),
+                grammar: cleanedContent.includes(grammarMarker),
+                chinese: cleanedContent.includes(chineseMarker)
             };
+
+            const presentMarkers = Object.values(markerPresence).filter(Boolean).length;
+
+            // If no markers are present, this is a complete failure
+            if (presentMarkers === 0) {
+                return {
+                    isValid: false,
+                    error: i18n.t('ai.noValidMarkers', locale) + ` | Response preview: "${cleanedContent.substring(0, 200)}..."`,
+                    sentence: '',
+                    grammarAnalysis: '',
+                    chineseTranslation: '',
+                    rawResponseContent: rawContent // Always include raw content on parse failure
+                };
+            }
+
+            // Extract content sections using robust parsing
+            const sections = this.extractSectionsRobust(cleanedContent, {
+                sentenceMarker,
+                grammarMarker,
+                chineseMarker,
+                endMarker
+            });
+
+            // Validate that at least some meaningful content was extracted
+            const hasValidContent = Object.values(sections).some(section => 
+                section && section.length >= 5
+            );
+
+            if (!hasValidContent) {
+                return {
+                    isValid: false,
+                    error: i18n.t('ai.noValidContent', locale) + ` | Extracted sections lengths: S:${sections.sentence?.length || 0}, GA:${sections.grammarAnalysis?.length || 0}, CT:${sections.chineseTranslation?.length || 0}`,
+                    sentence: '',
+                    grammarAnalysis: '',
+                    chineseTranslation: '',
+                    rawResponseContent: rawContent // Always include raw content on parse failure
+                };
+            }
+
+            // Determine if we should include raw content (for partial parses or debugging)
+            const isPartialParse = presentMarkers < 3;
+            const hasAnyMissingContent = Object.values(sections).some(section => !section || section.length < 5);
+
+            // Return successfully parsed content, even if some sections are missing
+            const result = {
+                isValid: true,
+                sentence: sections.sentence || '',
+                grammarAnalysis: sections.grammarAnalysis || '',
+                chineseTranslation: sections.chineseTranslation || '',
+                error: null,
+                partialParse: isPartialParse, // Indicate if this was a partial parse
+                missingMarkers: Object.entries(markerPresence)
+                    .filter(([_, present]) => !present)
+                    .map(([marker, _]) => marker)
+            };
+
+            // Include raw content if it's a partial parse or has missing content for debugging
+            if (isPartialParse || hasAnyMissingContent) {
+                result.rawResponseContent = rawContent;
+            }
+
+            return result;
 
         } catch (error) {
             return {
                 isValid: false,
-                error: i18n.t('ai.parseError', locale, { message: error.message }) + ` | Response preview: "${content.substring(0, 200)}..."`,
+                error: i18n.t('ai.parseError', locale, {message: error.message}) + ` | Response preview: "${content.substring(0, 200)}..."`,
                 sentence: '',
                 grammarAnalysis: '',
-                chineseTranslation: ''
+                chineseTranslation: '',
+                rawResponseContent: content // Always include raw content on exception
             };
         }
+    }
+
+    /**
+     * Clean response content by removing unwanted text and formatting issues
+     * @param {string} content - Raw AI response content
+     * @returns {string} Cleaned content
+     */
+    cleanResponseContent(content) {
+        if (!content) return '';
+
+        let cleaned = content;
+
+        // Remove "(Parsing required)" text
+        cleaned = cleaned.replace(/\(Parsing required\)/gi, '');
+
+        // Remove excessive whitespace while preserving structure
+        cleaned = cleaned.replace(/\n{3,}/g, '\n\n');
+
+        // Remove leading/trailing whitespace from each line while preserving overall structure
+        cleaned = cleaned.split('\n')
+            .map(line => line.trim())
+            .join('\n');
+
+        // Clean up any markdown artifacts that might interfere
+        cleaned = cleaned.replace(/```[\s\S]*?```/g, ''); // Remove code blocks
+        cleaned = cleaned.replace(/^\s*#{1,6}\s*/gm, ''); // Remove markdown headers
+
+        return cleaned.trim();
+    }
+
+    /**
+     * Extract sections from content using robust parsing that handles missing markers
+     * @param {string} content - Cleaned content to parse
+     * @param {Object} markers - Object containing all markers
+     * @returns {Object} Extracted sections
+     */
+    extractSectionsRobust(content, markers) {
+        const sections = {};
+
+        // For sentence checking response
+        if (markers.grammarAnalysisMarker) {
+            sections.grammarAnalysis = this.extractSection(
+                content, 
+                markers.grammarAnalysisMarker, 
+                [markers.grammarCorrectionMarker, markers.keywordAnalysisMarker, markers.chineseDefinitionMarker, markers.endMarker]
+            );
+
+            sections.grammarCorrection = this.extractSection(
+                content, 
+                markers.grammarCorrectionMarker, 
+                [markers.keywordAnalysisMarker, markers.chineseDefinitionMarker, markers.endMarker]
+            );
+
+            sections.keywordAnalysis = this.extractSection(
+                content, 
+                markers.keywordAnalysisMarker, 
+                [markers.chineseDefinitionMarker, markers.endMarker]
+            );
+
+            sections.chineseDefinition = this.extractSection(
+                content, 
+                markers.chineseDefinitionMarker, 
+                [markers.endMarker]
+            );
+        }
+
+        // For sentence generation response
+        if (markers.sentenceMarker) {
+            sections.sentence = this.extractSection(
+                content, 
+                markers.sentenceMarker, 
+                [markers.grammarMarker, markers.chineseMarker, markers.endMarker]
+            );
+
+            sections.grammarAnalysis = this.extractSection(
+                content, 
+                markers.grammarMarker, 
+                [markers.chineseMarker, markers.endMarker]
+            );
+
+            sections.chineseTranslation = this.extractSection(
+                content, 
+                markers.chineseMarker, 
+                [markers.endMarker]
+            );
+        }
+
+        return sections;
+    }
+
+    /**
+     * Extract a single section from content using flexible parsing
+     * @param {string} content - Content to search in
+     * @param {string} startMarker - Marker that starts the section
+     * @param {Array} endMarkers - Array of possible end markers (first found wins)
+     * @returns {string|null} Extracted section content or null if not found
+     */
+    extractSection(content, startMarker, endMarkers = []) {
+        const startIndex = content.indexOf(startMarker);
+        if (startIndex === -1) {
+            return null; // Marker not found
+        }
+
+        const contentStart = startIndex + startMarker.length;
+        
+        // Find the earliest end marker
+        let endIndex = content.length; // Default to end of content
+        
+        for (const endMarker of endMarkers) {
+            const markerIndex = content.indexOf(endMarker, contentStart);
+            if (markerIndex !== -1 && markerIndex < endIndex) {
+                endIndex = markerIndex;
+            }
+        }
+
+        const extractedContent = content.substring(contentStart, endIndex).trim();
+        
+        // Return content only if it has meaningful length
+        return extractedContent.length >= 5 ? extractedContent : null;
     }
 
     /**

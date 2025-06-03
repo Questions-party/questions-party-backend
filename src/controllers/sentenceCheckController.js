@@ -41,12 +41,21 @@ exports.checkSentence = async (req, res) => {
     // Check sentence using AI
     let aiResult;
     try {
-      aiResult = await aiService.checkSentence(sentence, req.user.id, maxRetries, grammarLanguageOption, req.locale);
+      aiResult = await aiService.checkSentence(sentence, req.user.id, grammarLanguageOption, req.locale);
     } catch (aiError) {
       return res.status(500).json({
         success: false,
-        message: req.t('ai.checkFailed', { message: aiError.message }),
-        retryInfo: aiError.retryInfo || null
+        message: req.t('ai.checkFailed', { message: aiError.message })
+      });
+    }
+
+    // Check if AI check was successful
+    if (!aiResult.success) {
+      return res.status(400).json({
+        success: false,
+        message: aiResult.message || req.t('ai.checkFailed', { message: 'Unknown error' }),
+        retryable: aiResult.retryable || false,
+        error: aiResult.error
       });
     }
 
@@ -59,6 +68,7 @@ exports.checkSentence = async (req, res) => {
       keywordAnalysis: aiResult.keywordAnalysis,
       chineseDefinition: aiResult.chineseDefinition,
       thinkingText: aiResult.thinking,
+      rawResponseContent: aiResult.rawResponse ? JSON.stringify(aiResult.rawResponse) : null,
       isPublic: isPublic !== false,
       aiModel: aiResult.aiModel || 'Qwen/QwQ-32B',
       grammarLanguageOption: grammarLanguageOption
@@ -70,7 +80,7 @@ exports.checkSentence = async (req, res) => {
     res.status(201).json({
       success: true,
       sentenceCheck,
-      retryInfo: aiResult.retryInfo || null
+      partialParse: aiResult.partialParse || false
     });
   } catch (error) {
     console.error('Sentence check error:', error);

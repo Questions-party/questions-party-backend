@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const {formatDateToUTC8} = require("../utils/timeUtils");
 
 const generationSchema = new mongoose.Schema({
   userId: {
@@ -19,25 +20,28 @@ const generationSchema = new mongoose.Schema({
   }],
   sentence: {
     type: String,
-    required: true,
     trim: true,
     maxlength: 1000
   },
   explanation: {
     type: String,
-    required: true,
     trim: true,
-    maxlength: 2000
+    maxlength: 30000
   },
   chineseTranslation: {
     type: String,
     trim: true,
-    maxlength: 1000 // Chinese translations are typically shorter
+    maxlength: 30000 // Chinese translations are typically shorter
   },
   thinkingText: {
     type: String,
     trim: true,
-    maxlength: 5000 // Support longer thinking content from QwQ model
+    maxlength: 30000 // Support longer thinking content from QwQ model
+  },
+  rawResponseContent: {
+    type: String,
+    trim: true,
+    maxlength: 30000 // Store raw AI response for debugging/fallback when parsing fails
   },
   isPublic: {
     type: Boolean,
@@ -68,7 +72,47 @@ const generationSchema = new mongoose.Schema({
     default: '1.0'
   }
 }, {
-  timestamps: true
+  timestamps: true,
+  toJSON: {
+    transform: function(doc, ret) {
+      // Format timestamps
+      if (ret.createdAt) {
+        ret.createdAt = formatDateToUTC8(ret.createdAt);
+      }
+      if (ret.updatedAt) {
+        ret.updatedAt = formatDateToUTC8(ret.updatedAt);
+      }
+      // Format likes createdAt
+      if (ret.likes && Array.isArray(ret.likes)) {
+        ret.likes.forEach(like => {
+          if (like.createdAt) {
+            like.createdAt = formatDateToUTC8(like.createdAt);
+          }
+        });
+      }
+      return ret;
+    }
+  },
+  toObject: {
+    transform: function(doc, ret) {
+      // Format timestamps
+      if (ret.createdAt) {
+        ret.createdAt = formatDateToUTC8(ret.createdAt);
+      }
+      if (ret.updatedAt) {
+        ret.updatedAt = formatDateToUTC8(ret.updatedAt);
+      }
+      // Format likes createdAt
+      if (ret.likes && Array.isArray(ret.likes)) {
+        ret.likes.forEach(like => {
+          if (like.createdAt) {
+            like.createdAt = formatDateToUTC8(like.createdAt);
+          }
+        });
+      }
+      return ret;
+    }
+  }
 });
 
 // Indexes for better query performance

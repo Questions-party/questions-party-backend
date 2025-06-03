@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
+const {formatDateToUTC8} = require("../utils/timeUtils");
 
 const userSchema = new mongoose.Schema({
   username: {
@@ -91,7 +92,31 @@ const userSchema = new mongoose.Schema({
     }
   }
 }, {
-  timestamps: true
+  timestamps: true,
+  toJSON: {
+    transform: function(doc, ret) {
+      // Format timestamps
+      if (ret.createdAt) {
+        ret.createdAt = formatDateToUTC8(ret.createdAt);
+      }
+      if (ret.updatedAt) {
+        ret.updatedAt = formatDateToUTC8(ret.updatedAt);
+      }
+      return ret;
+    }
+  },
+  toObject: {
+    transform: function(doc, ret) {
+      // Format timestamps
+      if (ret.createdAt) {
+        ret.createdAt = formatDateToUTC8(ret.createdAt);
+      }
+      if (ret.updatedAt) {
+        ret.updatedAt = formatDateToUTC8(ret.updatedAt);
+      }
+      return ret;
+    }
+  }
 });
 
 // Password hashing middleware
