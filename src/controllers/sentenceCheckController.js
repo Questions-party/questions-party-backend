@@ -71,7 +71,12 @@ exports.checkSentence = async (req, res) => {
       rawResponseContent: aiResult.rawResponse ? JSON.stringify(aiResult.rawResponse) : null,
       isPublic: isPublic !== false,
       aiModel: aiResult.aiModel || 'Qwen/QwQ-32B',
-      grammarLanguageOption: grammarLanguageOption
+      grammarLanguageOption: grammarLanguageOption,
+      modelSelection: aiResult.modelSelection ? {
+        inputSize: aiResult.modelSelection.inputSize,
+        selectedModel: aiResult.modelSelection.selectedModel,
+        selectionReason: aiResult.modelSelection.selectionReason
+      } : undefined
     });
 
     // Populate user info for response

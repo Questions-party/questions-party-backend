@@ -7,6 +7,7 @@ A Node.js/Express backend API for an interactive English learning platform where
 - **User Authentication**: JWT-based authentication with registration and login
 - **Word Management**: CRUD operations for user's word collections
 - **AI Sentence Generation**: SiliconFlow/Qwen integration for generating sentences using user's words
+- **Dynamic Model Selection**: Automatically selects optimal AI model based on input complexity
 - **AI Configuration Management**: Flexible, configuration-driven AI provider support
 - **Community Features**: Public feed of generated sentences with like system (no auth required for viewing)
 - **Public Access**: Anonymous users can view public content without authentication
@@ -21,10 +22,45 @@ A Node.js/Express backend API for an interactive English learning platform where
 - **MongoDB** - Primary database
 - **Mongoose** - MongoDB object modeling
 - **JWT** - Authentication tokens
-- **SiliconFlow API** - Primary AI sentence generation (Qwen/QwQ-32B model)
+- **SiliconFlow API** - Primary AI sentence generation with dynamic model selection
+  - **Qwen/Qwen3-8B** - Light model for simple inputs
+  - **Qwen/Qwen3-14B** - Medium model for moderate complexity
+  - **Qwen/Qwen3-30B-A3B** - Heavy model for complex inputs
 - **OpenAI API** - Optional/backup AI provider
 - **Joi** - Data validation
 - **bcryptjs** - Password hashing
+
+## Dynamic Model Selection
+
+The platform automatically selects the most appropriate AI model based on input complexity to optimize performance, cost, and quality:
+
+### Word Generation (Max: 50 words)
+- **🚀 Light Model (Qwen/Qwen3-8B)**: 1-16 words
+  - Fast processing for simple sentence generation
+  - Optimal for basic vocabulary practice
+- **⚡ Medium Model (Qwen/Qwen3-14B)**: 17-33 words
+  - Balanced performance for moderate complexity
+  - Better handling of multi-concept sentences
+- **🔥 Heavy Model (Qwen/Qwen3-30B-A3B)**: 34-50 words
+  - Advanced processing for complex sentence structures
+  - Superior quality for challenging word combinations
+
+### Sentence Checking (Max: 800 characters)
+- **🚀 Light Model (Qwen/Qwen3-8B)**: 1-266 characters
+  - Quick analysis for short sentences
+  - Efficient grammar checking for basic text
+- **⚡ Medium Model (Qwen/Qwen3-14B)**: 267-533 characters
+  - Enhanced analysis for paragraph-length text
+  - Better context understanding
+- **🔥 Heavy Model (Qwen/Qwen3-30B-A3B)**: 534-800 characters
+  - Comprehensive analysis for long, complex sentences
+  - Advanced reasoning for sophisticated grammar patterns
+
+### Benefits
+- **Performance Optimization**: Faster responses for simple inputs
+- **Cost Efficiency**: Resource allocation based on actual needs
+- **Quality Scaling**: Advanced models for complex tasks requiring deeper analysis
+- **Automatic Selection**: No manual configuration required
 
 ## Installation
 
@@ -52,9 +88,19 @@ MONGODB_URI=mongodb://localhost:27017/english-learning
 # JWT
 JWT_SECRET=your_super_secret_jwt_key_here
 
-# AI Service - SiliconFlow (Primary)
+# AI Service - SiliconFlow (Primary with Dynamic Model Selection)
 SILICONFLOW_API_KEY=your_siliconflow_api_key_here
 SILICONFLOW_API_URL=https://api.siliconflow.cn/v1/chat/completions
+
+# Dynamic Model Configuration (based on input complexity)
+# Light model for simple inputs (1-16 words / 1-266 characters)
+SILICONFLOW_MODEL_LIGHT=Qwen/Qwen3-8B
+# Medium model for moderate inputs (17-33 words / 267-533 characters)
+SILICONFLOW_MODEL_MEDIUM=Qwen/Qwen3-14B
+# Heavy model for complex inputs (34-50 words / 534-800 characters)
+SILICONFLOW_MODEL_HEAVY=Qwen/Qwen3-30B-A3B
+
+# Legacy model for backward compatibility
 SILICONFLOW_MODEL=Qwen/QwQ-32B
 
 # AI Service - OpenAI (Optional/Backup)
@@ -106,7 +152,7 @@ npm start
 - `POST /api/ai-configs/:id/test` - Test AI configuration **[Auth Required]**
 - `POST /api/ai-configs/default` - Create default SiliconFlow config **[Auth Required]**
 
-### Sentence Generation
+### Sentence Generation (with Dynamic Model Selection)
 - `POST /api/generate` - Generate sentence with AI **[Auth Required]**
 - `GET /api/generations` - Get user's generations **[Auth Required]**
 - `GET /api/generations/public` - Get public generations feed **[Public Access]**
@@ -114,6 +160,15 @@ npm start
 - `POST /api/generations/:id/like` - Toggle like on generation **[Auth Required]**
 - `PUT /api/generations/:id/privacy` - Update generation privacy **[Auth Required]**
 - `DELETE /api/generations/:id` - Delete generation **[Auth Required]**
+
+### Sentence Checking (with Dynamic Model Selection)
+- `POST /api/check` - Check sentence with AI **[Auth Required]**
+- `GET /api/checks` - Get user's sentence checks **[Auth Required]**
+- `GET /api/checks/public` - Get public sentence checks feed **[Public Access]**
+- `GET /api/checks/:id` - Get single sentence check **[Public for public content]**
+- `POST /api/checks/:id/like` - Toggle like on sentence check **[Auth Required]**
+- `PUT /api/checks/:id/privacy` - Update sentence check privacy **[Auth Required]**
+- `DELETE /api/checks/:id` - Delete sentence check **[Auth Required]**
 
 ### Health Check
 - `GET /api/health` - Server health status **[Public Access]**
@@ -123,7 +178,8 @@ npm start
 The API supports public access for viewing content without authentication:
 
 - **Public Generations Feed**: Anyone can view public generations at `/api/generations/public`
-- **Individual Public Generations**: Public generations can be viewed by anyone
+- **Public Sentence Checks Feed**: Anyone can view public sentence checks at `/api/checks/public`
+- **Individual Public Content**: Public generations and checks can be viewed by anyone
 - **Higher Rate Limits**: Public endpoints have higher rate limits (200 vs 100 requests per 15 minutes)
 - **Like Functionality**: Requires authentication - anonymous users can view but not like content
 
@@ -138,7 +194,8 @@ The API supports public access for viewing content without authentication:
   preferences: {
     theme: String, // 'light' | 'dark'
     language: String, // 'en' | 'zh'
-    showPublicGenerations: Boolean
+    showPublicGenerations: Boolean,
+    grammarExplanationLanguage: String // 'combined' | 'pure'
   },
   createdAt: Date,
   updatedAt: Date
@@ -166,6 +223,7 @@ The API supports public access for viewing content without authentication:
   words: [String], // array of words used
   sentence: String, // AI generated sentence
   explanation: String, // syntax explanation
+  chineseTranslation: String, // Chinese translation
   thinkingText: String, // AI reasoning (from QwQ model)
   isPublic: Boolean, // default true
   likes: [{
@@ -175,6 +233,42 @@ The API supports public access for viewing content without authentication:
   likeCount: Number, // denormalized
   aiModel: String, // AI model used (default: Qwen/QwQ-32B)
   promptVersion: String, // prompt version
+  // Dynamic model selection information
+  modelSelection: {
+    inputSize: Number, // Number of words used
+    selectedModel: String, // Actual model used (e.g., 'Qwen/Qwen3-8B')
+    selectionReason: String // Reason for selection (e.g., 'Word count: 5 words')
+  },
+  createdAt: Date,
+  updatedAt: Date
+}
+```
+
+### SentenceChecks Collection
+```javascript
+{
+  userId: ObjectId, // reference to Users
+  originalSentence: String, // sentence to check (max 800 chars)
+  grammarAnalysis: String, // AI grammar analysis
+  grammarCorrection: String, // AI grammar correction
+  keywordAnalysis: String, // AI keyword analysis
+  chineseDefinition: String, // Chinese definition
+  thinkingText: String, // AI reasoning process
+  rawResponseContent: String, // Raw AI response for debugging
+  isPublic: Boolean, // default true
+  likes: [{
+    userId: ObjectId,
+    createdAt: Date
+  }],
+  likeCount: Number, // denormalized
+  aiModel: String, // AI model used
+  grammarLanguageOption: String, // 'combined' | 'pure'
+  // Dynamic model selection information
+  modelSelection: {
+    inputSize: Number, // Number of characters in sentence
+    selectedModel: String, // Actual model used (e.g., 'Qwen/Qwen3-8B')
+    selectionReason: String // Reason for selection (e.g., 'Sentence length: 150 characters')
+  },
   createdAt: Date,
   updatedAt: Date
 }
@@ -217,16 +311,43 @@ The API supports public access for viewing content without authentication:
 
 ## AI Integration
 
-### SiliconFlow (Primary Provider)
-- **Model**: Qwen/QwQ-32B with reasoning capabilities
-- **Features**: Advanced thinking/reasoning text generation
-- **Configuration**: Flexible, user-configurable API settings
+### SiliconFlow (Primary Provider with Dynamic Selection)
+- **Light Model**: Qwen/Qwen3-8B for simple inputs
+- **Medium Model**: Qwen/Qwen3-14B for moderate complexity
+- **Heavy Model**: Qwen/Qwen3-30B-A3B for complex inputs
+- **Features**: 
+  - Dynamic model selection based on input complexity
+  - Cost optimization through appropriate model usage
+  - Performance scaling for different use cases
+  - Advanced reasoning capabilities
 
 ### Configuration-Driven Approach
 - **Dynamic Request Building**: Configurable request templates and paths
 - **Response Parsing**: Dynamic content extraction using path configurations
 - **API Key Management**: Encrypted storage with multiple placement options
 - **Multi-Provider Support**: Easy integration of different AI providers
+- **Model Selection Logic**: Automatic complexity-based model selection
+
+### Model Selection Algorithm
+```javascript
+// Word Generation (max 50 words)
+if (wordCount < 17) {
+  selectedModel = "Qwen/Qwen3-8B"      // Light: 1-16 words
+} else if (wordCount < 34) {
+  selectedModel = "Qwen/Qwen3-14B"     // Medium: 17-33 words
+} else {
+  selectedModel = "Qwen/Qwen3-30B-A3B" // Heavy: 34-50 words
+}
+
+// Sentence Checking (max 800 characters)
+if (charCount < 267) {
+  selectedModel = "Qwen/Qwen3-8B"      // Light: 1-266 chars
+} else if (charCount < 534) {
+  selectedModel = "Qwen/Qwen3-14B"     // Medium: 267-533 chars
+} else {
+  selectedModel = "Qwen/Qwen3-30B-A3B" // Heavy: 534-800 chars
+}
+```
 
 ## Error Responses
 
@@ -259,10 +380,10 @@ src/
 ├── models/         # Mongoose models
 ├── routes/         # Express routes
 ├── middleware/     # Custom middleware
-├── services/       # Business logic services
+├── services/       # Business logic services (including AI service with dynamic selection)
 └── utils/          # Utility functions (HTTP utils, encryption)
 
-config/             # Configuration files
+config/             # Configuration files (including dynamic model config)
 ```
 
 ### Adding New Features
@@ -275,9 +396,9 @@ config/             # Configuration files
 
 ## Deployment
 
-1. Set production environment variables
+1. Set production environment variables (including all dynamic model configurations)
 2. Ensure MongoDB is accessible
-3. Configure OpenAI API key
+3. Configure SiliconFlow API key and model configurations
 4. Use PM2 for process management:
 ```bash
 npm install -g pm2

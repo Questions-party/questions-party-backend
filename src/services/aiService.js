@@ -10,11 +10,11 @@ class AIService {
         this.platformConfig = {
             name: "SiliconFlow/Qwen Platform",
             apiUrl: config.siliconflowApiUrl || 'https://api.siliconflow.cn/v1/chat/completions',
-            model: config.siliconflowModel || 'Qwen/QwQ-32B-Preview',
+            model: config.siliconflowModel || 'Qwen/QwQ-32B',
             apiKeyPlacement: "header",
 
             requestTemplate: {
-                model: config.siliconflowModel || 'Qwen/QwQ-32B-Preview',
+                model: config.siliconflowModel || 'Qwen/QwQ-32B',
                 messages: [], // Populated dynamically
                 max_tokens: 512,
                 temperature: 0.7,
@@ -41,6 +41,20 @@ class AIService {
             timeout: 180000
         };
 
+        // Dynamic model configuration thresholds
+        this.modelThresholds = {
+            wordGeneration: {
+                max: 50,
+                lightThreshold: Math.floor(50 / 3), // ~16 words
+                mediumThreshold: Math.floor(50 * 2 / 3) // ~33 words
+            },
+            sentenceCheck: {
+                max: 800,
+                lightThreshold: Math.floor(800 / 3), // ~266 characters
+                mediumThreshold: Math.floor(800 * 2 / 3) // ~533 characters
+            }
+        };
+
         // Response format configuration for generation
         this.responseFormat = {
             sentenceMarker: "SENTENCE:",
@@ -60,15 +74,46 @@ class AIService {
     }
 
     /**
+     * Dynamically select AI model based on input complexity
+     * @param {string} type - Type of operation ('wordGeneration' or 'sentenceCheck')
+     * @param {number} inputSize - Size of input (word count or character count)
+     * @returns {string} Selected model name
+     */
+    selectModelByComplexity(type, inputSize) {
+        const thresholds = this.modelThresholds[type];
+        
+        if (!thresholds) {
+            console.warn(`Unknown operation type: ${type}, using default model`);
+            return config.siliconflowModel || 'Qwen/QwQ-32B';
+        }
+
+        if (inputSize < thresholds.lightThreshold) {
+            return config.siliconflowModelLight || 'Qwen/Qwen3-8B';
+        } else if (inputSize < thresholds.mediumThreshold) {
+            return config.siliconflowModelMedium || 'Qwen/Qwen3-14B';
+        } else {
+            return config.siliconflowModelHeavy || 'Qwen/Qwen3-30B-A3B';
+        }
+    }
+
+    /**
      * Get configuration for user (platform config + user's API key if provided)
      * @param {string} userId - User ID
+     * @param {string} selectedModel - Dynamically selected model
      * @returns {Object} AI configuration object
      */
-    async getConfigurationForUser(userId) {
+    async getConfigurationForUser(userId, selectedModel = null) {
+        const modelToUse = selectedModel || this.platformConfig.model;
+        
         if (!userId) {
             // Use platform default API key for anonymous users
             return {
                 ...this.platformConfig,
+                model: modelToUse,
+                requestTemplate: {
+                    ...this.platformConfig.requestTemplate,
+                    model: modelToUse
+                },
                 apiKey: config.siliconflowApiKey
             };
         }
@@ -81,19 +126,29 @@ class AIService {
             const decryptedApiKey = user.getDecryptedApiKey();
             return {
                 ...this.platformConfig,
+                model: modelToUse,
+                requestTemplate: {
+                    ...this.platformConfig.requestTemplate,
+                    model: modelToUse
+                },
                 apiKey: decryptedApiKey
             };
         } else {
             // Use platform default API key
             return {
                 ...this.platformConfig,
+                model: modelToUse,
+                requestTemplate: {
+                    ...this.platformConfig.requestTemplate,
+                    model: modelToUse
+                },
                 apiKey: config.siliconflowApiKey
             };
         }
     }
 
     /**
-     * Check sentence using AI with platform configuration
+     * Check sentence using AI with platform configuration and dynamic model selection
      * @param {string} sentence - Sentence to check
      * @param {string} userId - User ID (optional)
      * @param {string} grammarLanguageOption - Grammar explanation language option ('combined' or 'pure')
@@ -104,8 +159,14 @@ class AIService {
         // Validate sentence first
         this.validateSentence(sentence);
 
-        // Get configuration for user
-        const aiConfig = await this.getConfigurationForUser(userId);
+        // Dynamic model selection based on sentence length
+        const sentenceLength = sentence.trim().length;
+        const selectedModel = this.selectModelByComplexity('sentenceCheck', sentenceLength);
+        
+        console.log(`Dynamic model selection for sentence check: ${sentenceLength} chars -> ${selectedModel}`);
+
+        // Get configuration for user with selected model
+        const aiConfig = await this.getConfigurationForUser(userId, selectedModel);
 
         if (!aiConfig.apiKey) {
             throw new Error('No API key available. Please contact administrator or provide your own API key.');
@@ -146,7 +207,12 @@ class AIService {
                     chineseDefinition: parsedResponse.chineseDefinition,
                     aiModel: aiConfig.model,
                     thinking: thinking,
-                    rawResponse: response.data
+                    rawResponse: response.data,
+                    modelSelection: {
+                        inputSize: sentenceLength,
+                        selectedModel: selectedModel,
+                        selectionReason: `Sentence length: ${sentenceLength} characters`
+                    }
                 };
             } else {
                 // Check if this is a partial parse that we should accept
@@ -167,7 +233,12 @@ class AIService {
                         thinking: thinking,
                         rawResponse: response.data,
                         partialParse: true,
-                        parseError: parsedResponse.error
+                        parseError: parsedResponse.error,
+                        modelSelection: {
+                            inputSize: sentenceLength,
+                            selectedModel: selectedModel,
+                            selectionReason: `Sentence length: ${sentenceLength} characters`
+                        }
                     };
                 }
 
@@ -217,7 +288,7 @@ class AIService {
     }
 
     /**
-     * Generate sentence using AI with platform configuration
+     * Generate sentence using AI with platform configuration and dynamic model selection
      * @param {Array} words - Array of words to include
      * @param {string} userId - User ID (optional)
      * @param {Array} conversationHistory - Previous messages (optional)
@@ -229,8 +300,14 @@ class AIService {
         // Validate words first
         const cleanedWords = this.validateWords(words);
 
-        // Get configuration for user
-        const aiConfig = await this.getConfigurationForUser(userId);
+        // Dynamic model selection based on word count
+        const wordCount = cleanedWords.length;
+        const selectedModel = this.selectModelByComplexity('wordGeneration', wordCount);
+        
+        console.log(`Dynamic model selection for word generation: ${wordCount} words -> ${selectedModel}`);
+
+        // Get configuration for user with selected model
+        const aiConfig = await this.getConfigurationForUser(userId, selectedModel);
 
         if (!aiConfig.apiKey) {
             throw new Error('No API key available. Please contact administrator or provide your own API key.');
@@ -270,7 +347,12 @@ class AIService {
                     chineseTranslation: parsedResponse.chineseTranslation,
                     aiModel: aiConfig.model,
                     thinking: thinking,
-                    rawResponse: response.data
+                    rawResponse: response.data,
+                    modelSelection: {
+                        inputSize: wordCount,
+                        selectedModel: selectedModel,
+                        selectionReason: `Word count: ${wordCount} words`
+                    }
                 };
             } else {
                 // Check if this is a partial parse that we should accept
@@ -289,7 +371,12 @@ class AIService {
                         thinking: thinking,
                         rawResponse: response.data,
                         partialParse: true,
-                        parseError: parsedResponse.error
+                        parseError: parsedResponse.error,
+                        modelSelection: {
+                            inputSize: wordCount,
+                            selectedModel: selectedModel,
+                            selectionReason: `Word count: ${wordCount} words`
+                        }
                     };
                 }
 
@@ -827,15 +914,33 @@ END_FORMAT(Parsing required)`;
     }
 
     /**
-     * Get platform configuration info (without sensitive data)
+     * Get platform configuration info (without sensitive data) with model selection details
      * @returns {Object} Platform configuration info
      */
     getPlatformConfigInfo() {
         return {
             provider: "SiliconFlow",
-            model: this.platformConfig.model,
+            defaultModel: this.platformConfig.model,
+            dynamicModels: {
+                light: config.siliconflowModelLight || 'Qwen/Qwen3-8B',
+                medium: config.siliconflowModelMedium || 'Qwen/Qwen3-14B',
+                heavy: config.siliconflowModelHeavy || 'Qwen/Qwen3-30B-A3B'
+            },
+            modelSelection: {
+                wordGeneration: {
+                    maxWords: this.modelThresholds.wordGeneration.max,
+                    lightThreshold: this.modelThresholds.wordGeneration.lightThreshold,
+                    mediumThreshold: this.modelThresholds.wordGeneration.mediumThreshold
+                },
+                sentenceCheck: {
+                    maxCharacters: this.modelThresholds.sentenceCheck.max,
+                    lightThreshold: this.modelThresholds.sentenceCheck.lightThreshold,
+                    mediumThreshold: this.modelThresholds.sentenceCheck.mediumThreshold
+                }
+            },
             apiUrl: this.platformConfig.apiUrl,
             features: [
+                "Dynamic model selection based on complexity",
                 "Advanced reasoning with QwQ model",
                 "Grammar explanations",
                 "Natural sentence generation",

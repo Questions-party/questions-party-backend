@@ -4,6 +4,7 @@ const aiService = require('../services/aiService');
 const Joi = require('joi');
 const mongoose = require('mongoose');
 const User = require('../models/User');
+const SentenceCheck = require('../models/SentenceCheck');
 
 // Validation schemas
 const generateSentenceSchema = Joi.object({
@@ -70,7 +71,12 @@ exports.generateSentence = async (req, res) => {
       thinkingText: aiResult.thinking, // Support for QwQ reasoning
       rawResponseContent: aiResult.rawResponse ? JSON.stringify(aiResult.rawResponse) : null,
       isPublic: isPublic !== false, // default to true if not specified
-      aiModel: aiResult.aiModel || 'Qwen/QwQ-32B'
+      aiModel: aiResult.aiModel || 'Qwen/QwQ-32B',
+      modelSelection: aiResult.modelSelection ? {
+        inputSize: aiResult.modelSelection.inputSize,
+        selectedModel: aiResult.modelSelection.selectedModel,
+        selectionReason: aiResult.modelSelection.selectionReason
+      } : undefined
     });
 
     // Update word usage counts for user's words
@@ -518,14 +524,21 @@ exports.getPublicStatistics = async (req, res) => {
 exports.deleteAllGenerations = async (req, res) => {
   try {
     // Delete all generations for the authenticated user
-    const result = await Generation.deleteMany({
+    const generationResult = await Generation.deleteMany({
+      userId: req.user.id
+    });
+
+    // Delete all sentence checks for the authenticated user
+    const sentenceCheckResult = await SentenceCheck.deleteMany({
       userId: req.user.id
     });
 
     res.status(200).json({
       success: true,
       message: req.t('generations.allGenerationsDeletedSuccessfully'),
-      deletedCount: result.deletedCount
+      deletedGenerations: generationResult.deletedCount,
+      deletedSentenceChecks: sentenceCheckResult.deletedCount,
+      totalDeleted: generationResult.deletedCount + sentenceCheckResult.deletedCount
     });
   } catch (error) {
     console.error('Delete all generations error:', error);

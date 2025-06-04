@@ -70,6 +70,21 @@ const generationSchema = new mongoose.Schema({
   promptVersion: {
     type: String,
     default: '1.0'
+  },
+  // Dynamic model selection information
+  modelSelection: {
+    inputSize: {
+      type: Number, // Number of words used for generation
+      required: false
+    },
+    selectedModel: {
+      type: String, // Actual model used (e.g., 'Qwen/Qwen3-8B')
+      required: false
+    },
+    selectionReason: {
+      type: String, // Reason for model selection (e.g., 'Word count: 5 words')
+      required: false
+    }
   }
 }, {
   timestamps: true,
@@ -121,6 +136,7 @@ generationSchema.index({ isPublic: 1, createdAt: -1 });
 generationSchema.index({ isPublic: 1, likeCount: -1, createdAt: -1 });
 generationSchema.index({ 'likes.userId': 1 });
 generationSchema.index({ configId: 1 }); // Index for AI configuration tracking
+generationSchema.index({ 'modelSelection.selectedModel': 1 }); // Index for model selection tracking
 
 // Method to check if user has liked this generation
 generationSchema.methods.isLikedByUser = function(userId) {

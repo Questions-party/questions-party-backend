@@ -75,6 +75,21 @@ const sentenceCheckSchema = new mongoose.Schema({
     type: String,
     enum: ['combined', 'pure'],
     default: 'combined'
+  },
+  // Dynamic model selection information
+  modelSelection: {
+    inputSize: {
+      type: Number, // Number of characters in the sentence
+      required: false
+    },
+    selectedModel: {
+      type: String, // Actual model used (e.g., 'Qwen/Qwen3-8B')
+      required: false
+    },
+    selectionReason: {
+      type: String, // Reason for model selection (e.g., 'Sentence length: 150 characters')
+      required: false
+    }
   }
 }, {
   timestamps: true,
@@ -125,6 +140,7 @@ sentenceCheckSchema.index({ userId: 1, createdAt: -1 });
 sentenceCheckSchema.index({ isPublic: 1, createdAt: -1 });
 sentenceCheckSchema.index({ isPublic: 1, likeCount: -1, createdAt: -1 });
 sentenceCheckSchema.index({ 'likes.userId': 1 });
+sentenceCheckSchema.index({ 'modelSelection.selectedModel': 1 }); // Index for model selection tracking
 
 // Method to check if user has liked this sentence check
 sentenceCheckSchema.methods.isLikedByUser = function(userId) {

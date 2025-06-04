@@ -98,7 +98,26 @@ app.get('/api/health', (req, res) => {
         locale: req.locale,
         services: {
             database: 'connected',
-            ai: 'SiliconFlow/Qwen available'
+            ai: 'SiliconFlow with Dynamic Model Selection available'
+        },
+        dynamicModels: {
+            light: config.siliconflowModelLight || 'Qwen/Qwen3-8B',
+            medium: config.siliconflowModelMedium || 'Qwen/Qwen3-14B',
+            heavy: config.siliconflowModelHeavy || 'Qwen/Qwen3-30B-A3B'
+        },
+        modelSelection: {
+            wordGeneration: {
+                maxWords: 50,
+                lightThreshold: '1-16 words',
+                mediumThreshold: '17-33 words',
+                heavyThreshold: '34-50 words'
+            },
+            sentenceCheck: {
+                maxCharacters: 800,
+                lightThreshold: '1-266 characters',
+                mediumThreshold: '267-533 characters',
+                heavyThreshold: '534-800 characters'
+            }
         }
     });
 });
@@ -112,7 +131,12 @@ app.get('/', (req, res) => {
         locale: req.locale,
         features: {
             aiProvider: 'SiliconFlow',
-            aiModel: 'Qwen/QwQ-32B',
+            dynamicModelSelection: 'Automatic model selection based on input complexity',
+            models: {
+                light: config.siliconflowModelLight || 'Qwen/Qwen3-8B',
+                medium: config.siliconflowModelMedium || 'Qwen/Qwen3-14B',
+                heavy: config.siliconflowModelHeavy || 'Qwen/Qwen3-30B-A3B'
+            },
             publicAccess: 'Available for viewing content',
             authRequired: 'For content creation and interaction'
         }
