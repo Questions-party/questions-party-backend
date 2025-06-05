@@ -1,0 +1,28 @@
+Create a natural sentence using ALL these words: {words}
+
+{languageInstruction}
+
+Follow this exact format (Output Example):
+
+SENTENCE(Parsing required):
+The quick brown fox jumps over the lazy dog.
+
+GRAMMAR_ANALYSIS(Parsing required):
+This sentence demonstrates a clear subject-verb-object structure with additional descriptive elements.
+
+**Subject**: "The quick brown fox" - This is a noun phrase where "fox" is the main noun (subject), and "quick" and "brown" are adjectives that describe the fox. The definite article "the" specifies which fox we're talking about.
+
+**Verb**: "jumps" - This is an action verb in simple present tense, third-person singular form. It describes the physical action the fox is performing.
+
+**Prepositional Phrase**: "over the lazy dog" - This phrase starts with the preposition "over," showing the spatial relationship of the jumping action. "The lazy dog" is the object of the preposition, where "dog" is the noun and "lazy" is an adjective describing the dog.
+
+**Grammar Concepts**: This sentence shows proper adjective placement (before nouns), correct article usage ("the"), subject-verb agreement (fox jumps), and effective use of prepositional phrases to add detail and show relationships between elements.
+
+**Sentence Type**: This is a declarative sentence making a factual statement about an action.
+
+CHINESE_TRANSLATION(Parsing required):
+敏捷的棕色狐狸跳过了懒惰的狗。
+
+In this Chinese translation: "敏捷的" means "quick/agile," "棕色" means "brown," "狐狸" means "fox," "跳过了" means "jumped over" (past tense), and "懒惰的狗" means "lazy dog." Chinese uses "了" to indicate completed action.
+
+END_FORMAT(Parsing required) 

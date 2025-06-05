@@ -3,6 +3,7 @@ const config = require('../../config/config');
 const User = require('../models/User');
 const HttpUtils = require('../utils/httpUtils');
 const i18n = require('../utils/i18n');
+const promptLoader = require('../utils/promptLoader');
 
 class AIService {
     constructor() {
@@ -153,9 +154,10 @@ class AIService {
      * @param {string} userId - User ID (optional)
      * @param {string} grammarLanguageOption - Grammar explanation language option ('combined' or 'pure')
      * @param {string} locale - Locale for error messages (default: 'en')
+     * @param {string} promptLocale - Locale for prompt templates ('en' or 'zh', default: 'en')
      * @returns {Object} Sentence check result
      */
-    async checkSentence(sentence, userId = null, grammarLanguageOption = 'combined', locale = 'en') {
+    async checkSentence(sentence, userId = null, grammarLanguageOption = 'combined', locale = 'en', promptLocale = 'en') {
         // Validate sentence first
         this.validateSentence(sentence);
 
@@ -173,8 +175,11 @@ class AIService {
         }
 
         try {
-            // Create structured prompt for sentence checking
-            const prompt = this.createSentenceCheckPrompt(sentence, grammarLanguageOption);
+            // Validate prompt locale
+            const validatedPromptLocale = ['en', 'zh'].includes(promptLocale) ? promptLocale : 'en';
+            
+            // Create structured prompt for sentence checking using prompt loader
+            const prompt = promptLoader.getSentenceCheckPrompt(sentence, grammarLanguageOption, validatedPromptLocale);
 
             // Prepare request data using configuration
             const {headers, requestBody} = HttpUtils.prepareRequestData(
@@ -294,9 +299,10 @@ class AIService {
      * @param {Array} conversationHistory - Previous messages (optional)
      * @param {string} grammarLanguageOption - Grammar explanation language option ('combined' or 'pure')
      * @param {string} locale - Locale for error messages (default: 'en')
+     * @param {string} promptLocale - Locale for prompt templates ('en' or 'zh', default: 'en')
      * @returns {Object} Generated sentence and explanation
      */
-    async generateSentence(words, userId = null, conversationHistory = [], grammarLanguageOption = 'combined', locale = 'en') {
+    async generateSentence(words, userId = null, conversationHistory = [], grammarLanguageOption = 'combined', locale = 'en', promptLocale = 'en') {
         // Validate words first
         const cleanedWords = this.validateWords(words);
 
@@ -314,8 +320,11 @@ class AIService {
         }
 
         try {
-            // Create structured prompt for consistent output format
-            const prompt = this.createStructuredPrompt(cleanedWords, grammarLanguageOption);
+            // Validate prompt locale
+            const validatedPromptLocale = ['en', 'zh'].includes(promptLocale) ? promptLocale : 'en';
+            
+            // Create structured prompt for consistent output format using prompt loader
+            const prompt = promptLoader.getSentenceGenerationPrompt(cleanedWords, grammarLanguageOption, validatedPromptLocale);
 
             // Prepare request data using configuration
             const {headers, requestBody} = HttpUtils.prepareRequestData(
@@ -425,98 +434,9 @@ class AIService {
         }
     }
 
-    /**
-     * Create structured prompt for sentence checking
-     * @param {string} sentence - Sentence to check
-     * @param {string} grammarLanguageOption - Grammar explanation language option ('combined' or 'pure')
-     * @returns {string} Structured prompt
-     */
-    createSentenceCheckPrompt(sentence, grammarLanguageOption) {
-        const isEnglishOnly = grammarLanguageOption === 'pure';
-        const languageInstruction = isEnglishOnly
-            ? "Provide explanations in English only."
-            : "Provide explanations in both English and Chinese.";
 
-        return `Analyze this sentence: "${sentence}"
 
-${languageInstruction}
 
-Follow this exact format (Output Example):
-
-GRAMMAR_ANALYSIS(Parsing required):
-This sentence follows a simple subject-verb-object (SVO) structure, which is the most common sentence pattern in English.
-
-**Subject Analysis**: "She" is a third-person singular pronoun that serves as the subject of the sentence. It refers to a female person who is performing the action.
-
-**Verb Analysis**: "reads" is the main verb in simple present tense. It shows a habitual or regular action. Since the subject is third-person singular ("she"), the verb correctly takes the "-s" ending, demonstrating proper subject-verb agreement.
-
-**Object Analysis**: "books" is a plural noun that functions as the direct object. It receives the action of the verb "reads" and tells us what she is reading.
-
-**Grammar Rules Demonstrated**: This sentence shows correct subject-verb agreement (she reads, not she read), proper use of simple present tense for habitual actions, and clear direct object placement.
-
-GRAMMAR_CORRECTION(Parsing required):
-The sentence is grammatically correct and needs no changes.
-
-However, for variety, you could also say: "She reads novels" or "She enjoys reading books" to add more specificity or express the action differently.
-
-KEYWORD_ANALYSIS(Parsing required):
-**"She"** - This is a personal pronoun in the third person singular form. It's used to refer to a female person without repeating her name. In this sentence, it functions as the subject who performs the action.
-
-**"reads"** - This is a regular verb in the simple present tense with the third-person singular "-s" ending. It describes the action of looking at written words and understanding their meaning. The present tense suggests this is a habitual or regular activity.
-
-**"books"** - This is a plural countable noun that serves as the direct object. The plural form "books" (instead of "book") suggests she reads multiple books or reading books in general as an activity.
-
-**Overall**: This sentence uses simple, common vocabulary that's perfect for everyday communication about reading habits.
-
-CHINESE_DEFINITION(Parsing required):
-她读书。
-
-This Chinese translation captures the essence of the English sentence. "她" means "she," "读" means "to read," and "书" means "book/books." In Chinese, the plural form is often implied by context rather than explicitly marked.
-
-END_FORMAT(Parsing required)`;
-    }
-
-    /**
-     * Create structured prompt with specific format requirements
-     * @param {Array} cleanedWords - Array of cleaned words
-     * @param {string} grammarLanguageOption - Grammar explanation language option ('combined' or 'pure')
-     * @returns {string} Structured prompt
-     */
-    createStructuredPrompt(cleanedWords, grammarLanguageOption) {
-        const isEnglishOnly = grammarLanguageOption === 'pure';
-        const languageInstruction = isEnglishOnly
-            ? "Provide explanations in English only."
-            : "Provide explanations in both English and Chinese.";
-
-        return `Create a natural sentence using ALL these words: ${cleanedWords.join(', ')}
-
-${languageInstruction}
-
-Follow this exact format (Output Example):
-
-SENTENCE(Parsing required):
-The quick brown fox jumps over the lazy dog.
-
-GRAMMAR_ANALYSIS(Parsing required):
-This sentence demonstrates a clear subject-verb-object structure with additional descriptive elements.
-
-**Subject**: "The quick brown fox" - This is a noun phrase where "fox" is the main noun (subject), and "quick" and "brown" are adjectives that describe the fox. The definite article "the" specifies which fox we're talking about.
-
-**Verb**: "jumps" - This is an action verb in simple present tense, third-person singular form. It describes the physical action the fox is performing.
-
-**Prepositional Phrase**: "over the lazy dog" - This phrase starts with the preposition "over," showing the spatial relationship of the jumping action. "The lazy dog" is the object of the preposition, where "dog" is the noun and "lazy" is an adjective describing the dog.
-
-**Grammar Concepts**: This sentence shows proper adjective placement (before nouns), correct article usage ("the"), subject-verb agreement (fox jumps), and effective use of prepositional phrases to add detail and show relationships between elements.
-
-**Sentence Type**: This is a declarative sentence making a factual statement about an action.
-
-CHINESE_TRANSLATION(Parsing required):
-敏捷的棕色狐狸跳过了懒惰的狗。
-
-In this Chinese translation: "敏捷的" means "quick/agile," "棕色" means "brown," "狐狸" means "fox," "跳过了" means "jumped over" (past tense), and "懒惰的狗" means "lazy dog." Chinese uses "了" to indicate completed action.
-
-END_FORMAT(Parsing required)`;
-    }
 
     /**
      * Parse structured sentence check AI response with robust error handling
@@ -918,6 +838,10 @@ END_FORMAT(Parsing required)`;
      * @returns {Object} Platform configuration info
      */
     getPlatformConfigInfo() {
+        // Get prompt system information
+        const promptValidation = promptLoader.validatePromptFiles();
+        const promptCache = promptLoader.getCacheInfo();
+
         return {
             provider: "SiliconFlow",
             defaultModel: this.platformConfig.model,
@@ -938,15 +862,38 @@ END_FORMAT(Parsing required)`;
                     mediumThreshold: this.modelThresholds.sentenceCheck.mediumThreshold
                 }
             },
+            promptSystem: {
+                promptsValid: promptValidation.valid,
+                availablePrompts: promptValidation.existing,
+                missingPrompts: promptValidation.missing,
+                promptsDirectory: promptValidation.promptsDirectory,
+                cacheStatus: promptCache
+            },
             apiUrl: this.platformConfig.apiUrl,
             features: [
                 "Dynamic model selection based on complexity",
                 "Advanced reasoning with QwQ model",
                 "Grammar explanations",
                 "Natural sentence generation",
-                "Multi-word integration"
+                "Multi-word integration",
+                "Modular prompt system with multi-language support"
             ]
         };
+    }
+
+    /**
+     * Validate prompt system
+     * @returns {Object} Prompt system validation result
+     */
+    validatePromptSystem() {
+        return promptLoader.validatePromptFiles();
+    }
+
+    /**
+     * Clear prompt cache (useful for development when updating prompt files)
+     */
+    clearPromptCache() {
+        promptLoader.clearCache();
     }
 
     /**

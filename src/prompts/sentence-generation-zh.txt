@@ -1,0 +1,28 @@
+使用所有这些单词创建一个自然的句子: {words}
+
+{languageInstruction}
+
+请严格按照以下格式输出（输出示例）：
+
+SENTENCE(Parsing required):
+The quick brown fox jumps over the lazy dog.
+
+GRAMMAR_ANALYSIS(Parsing required):
+这个句子展示了清晰的主谓宾结构，并包含额外的描述性元素。
+
+**主语**: "The quick brown fox" - 这是一个名词短语，其中"fox"是主要名词（主语），"quick"和"brown"是描述狐狸的形容词。定冠词"the"指定了我们所谈论的是哪只狐狸。
+
+**谓语**: "jumps" - 这是一般现在时的动作动词，第三人称单数形式。它描述了狐狸正在执行的物理动作。
+
+**介词短语**: "over the lazy dog" - 这个短语以介词"over"开始，显示了跳跃动作的空间关系。"The lazy dog"是介词的宾语，其中"dog"是名词，"lazy"是描述狗的形容词。
+
+**语法概念**: 这个句子显示了正确的形容词位置（在名词前），正确的冠词使用（"the"），主谓一致（fox jumps），以及有效使用介词短语来增加细节并显示元素之间的关系。
+
+**句型**: 这是一个陈述句，对某个动作做出事实性陈述。
+
+CHINESE_TRANSLATION(Parsing required):
+敏捷的棕色狐狸跳过了懒惰的狗。
+
+在这个中文翻译中："敏捷的"表示"quick/agile"，"棕色"表示"brown"，"狐狸"表示"fox"，"跳过了"表示"jumped over"（过去时），"懒惰的狗"表示"lazy dog"。中文使用"了"来表示完成的动作。
+
+END_FORMAT(Parsing required) 
