@@ -1,5 +1,3 @@
-const crypto = require('crypto');
-
 class HttpUtils {
   /**
    * Set a value in an object using a dynamic path
@@ -85,15 +83,8 @@ class HttpUtils {
     // Prepare headers
     const headers = { ...config.headers };
     
-    // Handle API key decryption if needed
+    // Use API key directly (RSA decryption is handled at the User model level)
     let apiKey = config.apiKey;
-    if (apiKey && apiKey.startsWith('enc:') && config.secretKey) {
-      try {
-        apiKey = this.decryptApiKey(apiKey.substring(4), config.secretKey);
-      } catch (error) {
-        throw new Error(`Failed to decrypt API key: ${error.message}`);
-      }
-    }
 
     // Add API key to headers based on placement
     if (config.apiKeyPlacement === 'header' || !config.apiKeyPlacement) {
@@ -190,65 +181,7 @@ class HttpUtils {
     return { content, thinking, rawResponse: responseMap };
   }
 
-  /**
-   * Decrypt an API key using AES decryption (CryptoJS compatible)
-   * @param {string} encryptedApiKey - The encrypted API key
-   * @param {string} secretKey - The secret key for decryption
-   * @returns {string} The decrypted API key
-   */
-  static decryptApiKey(encryptedApiKey, secretKey) {
-    try {
-      // CryptoJS format: Base64 encoded with "Salted__" prefix + 8 byte salt + ciphertext
-      const cipherData = Buffer.from(encryptedApiKey, 'base64');
-      
-      // Extract salt and ciphertext (skip first 8 bytes for "Salted__")
-      const saltBytes = cipherData.slice(8, 16);
-      const cipherBytes = cipherData.slice(16);
-      
-      // Generate key and IV using OpenSSL EVP_BytesToKey derivation
-      const { key, iv } = this.evpBytesToKey(secretKey, saltBytes);
-      
-      // Decrypt using AES-256-CBC
-      const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
-      let decrypted = decipher.update(cipherBytes);
-      decrypted = Buffer.concat([decrypted, decipher.final()]);
-      
-      return decrypted.toString('utf8');
-    } catch (error) {
-      throw new Error(`Failed to decrypt API key: ${error.message}`);
-    }
-  }
 
-  /**
-   * Implementation of OpenSSL's EVP_BytesToKey key derivation function
-   * Compatible with CryptoJS key derivation
-   * @param {string} password - The password to derive from
-   * @param {Buffer} salt - The salt bytes
-   * @returns {Object} Object containing key and IV buffers
-   */
-  static evpBytesToKey(password, salt) {
-    const keyLen = 32; // 256 bits
-    const ivLen = 16;  // 128 bits
-    
-    let derivedBytes = Buffer.alloc(0);
-    let block = null;
-    
-    while (derivedBytes.length < keyLen + ivLen) {
-      const hash = crypto.createHash('md5');
-      if (block) {
-        hash.update(block);
-      }
-      hash.update(password, 'utf8');
-      hash.update(salt);
-      block = hash.digest();
-      derivedBytes = Buffer.concat([derivedBytes, block]);
-    }
-    
-    return {
-      key: derivedBytes.slice(0, keyLen),
-      iv: derivedBytes.slice(keyLen, keyLen + ivLen)
-    };
-  }
 
   /**
    * Make HTTP POST request with proper error handling

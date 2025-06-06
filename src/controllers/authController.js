@@ -2,6 +2,7 @@ const User = require('../models/User');
 const jwt = require('jsonwebtoken');
 const config = require('../../config/config');
 const Joi = require('joi');
+const { getPublicKey } = require('../utils/rsaCrypto');
 
 // Validation schemas
 const registerSchema = Joi.object({
@@ -357,8 +358,8 @@ exports.updateApiKey = async (req, res) => {
 
     // Update user's API key settings
     if (useCustomApiKey) {
-      // If apiKey is provided and not empty, encrypt and store it
-      // If apiKey is empty or not provided, just set the flag but keep apiKey undefined
+      // If apiKey is provided and not empty, store the encrypted API key from frontend
+      // Frontend should send RSA-encrypted API key with 'rsa:' prefix
       if (apiKey && apiKey.trim().length > 0) {
         user.apiKey = apiKey.trim();
       } else {
@@ -448,6 +449,25 @@ exports.getApiKeyStatus = async (req, res) => {
       useCustomApiKey: user.useCustomApiKey,
       hasCustomApiKey: !!(user.useCustomApiKey && user.apiKey),
       platformInfo
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: req.t('auth.serverError')
+    });
+  }
+};
+
+// @desc    Get RSA public key for API key encryption
+// @route   GET /api/auth/public-key
+// @access  Public
+exports.getPublicKey = async (req, res) => {
+  try {
+    const publicKey = getPublicKey();
+    
+    res.status(200).json({
+      success: true,
+      publicKey
     });
   } catch (error) {
     res.status(500).json({

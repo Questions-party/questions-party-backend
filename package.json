@@ -7,7 +7,9 @@
   "scripts": {
     "start": "nodemon src/server.js",
     "dev": "nodemon src/server.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "test:rsa": "node tests/rsaCrypto.test.js",
+    "encrypt:platform-key": "node scripts/encryptPlatformApiKey.js"
   },
   "keywords": [
     "english",
@@ -28,6 +30,7 @@
     "helmet": "^7.0.0",
     "joi": "^17.9.2",
     "jsonwebtoken": "^9.0.2",
+    "jsrsasign": "^11.1.0",
     "mongoose": "^7.5.0",
     "morgan": "^1.10.0",
     "typo-js": "^1.2.5",

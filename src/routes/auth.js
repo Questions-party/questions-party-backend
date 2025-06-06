@@ -8,7 +8,8 @@ const {
   updateFontSettings,
   updateApiKey,
   testApiKey,
-  getApiKeyStatus
+  getApiKeyStatus,
+  getPublicKey
 } = require('../controllers/authController');
 const { auth } = require('../middleware/auth');
 const { authLimiter } = require('../middleware/rateLimiter');
@@ -59,5 +60,10 @@ router.post('/test-api-key', authLimiter, auth, testApiKey);
 // @desc    Get API key status and platform info
 // @access  Private (with rate limiting)
 router.get('/api-key-status', authLimiter, auth, getApiKeyStatus);
+
+// @route   GET /api/auth/public-key
+// @desc    Get RSA public key for API key encryption
+// @access  Public (no rate limiting needed)
+router.get('/public-key', getPublicKey);
 
 module.exports = router; 
