@@ -8,7 +8,7 @@ const { generateKeyPair } = require('../src/utils/rsaCrypto');
 // Configuration
 const envPath = path.join(__dirname, '../.env');
 
-// Function to parse .env file
+// Function to parse .env file (handles multi-line quoted values)
 function parseEnvFile(filePath) {
   const envVars = {};
   
@@ -17,20 +17,65 @@ function parseEnvFile(filePath) {
   }
   
   const content = fs.readFileSync(filePath, 'utf8');
-  const lines = content.split('\n');
+  // Handle all possible line endings: \r\n (Windows), \n (Unix), and \r (Mac/corrupted)
+  const lines = content.split(/\r\n|\r|\n/);
   
-  for (const line of lines) {
+  let currentKey = null;
+  let currentValue = '';
+  let inQuotedValue = false;
+  let quoteChar = '';
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
     const trimmedLine = line.trim();
-    if (trimmedLine && !trimmedLine.startsWith('#')) {
-      const [key, ...valueParts] = trimmedLine.split('=');
-      if (key && valueParts.length > 0) {
-        let value = valueParts.join('=').trim();
-        // Remove quotes if present
-        if ((value.startsWith('"') && value.endsWith('"')) || 
-            (value.startsWith("'") && value.endsWith("'"))) {
-          value = value.slice(1, -1);
+    
+    // Skip empty lines and comments when not in a quoted value
+    if (!inQuotedValue && (!trimmedLine || trimmedLine.startsWith('#'))) {
+      continue;
+    }
+    
+    if (!inQuotedValue) {
+      // Look for key=value pattern
+      const equalIndex = line.indexOf('=');
+      if (equalIndex > 0) {
+        currentKey = line.substring(0, equalIndex).trim();
+        let value = line.substring(equalIndex + 1).trim();
+        
+        // Check if value starts with a quote
+        if ((value.startsWith('"') || value.startsWith("'"))) {
+          quoteChar = value[0];
+          currentValue = value.substring(1); // Remove opening quote
+          
+          // Check if the value also ends on the same line
+          if (currentValue.endsWith(quoteChar)) {
+            // Single line quoted value
+            currentValue = currentValue.substring(0, currentValue.length - 1);
+            envVars[currentKey] = currentValue;
+            currentKey = null;
+            currentValue = '';
+          } else {
+            // Multi-line quoted value
+            inQuotedValue = true;
+          }
+        } else {
+          // Simple unquoted value
+          envVars[currentKey] = value;
+          currentKey = null;
         }
-        envVars[key.trim()] = value;
+      }
+    } else {
+      // We're inside a quoted multi-line value
+      if (line.endsWith(quoteChar)) {
+        // End of quoted value
+        currentValue += '\n' + line.substring(0, line.length - 1);
+        envVars[currentKey] = currentValue;
+        currentKey = null;
+        currentValue = '';
+        inQuotedValue = false;
+        quoteChar = '';
+      } else {
+        // Continue multi-line value
+        currentValue += '\n' + line;
       }
     }
   }
@@ -59,8 +104,8 @@ async function encryptPlatformApiKey() {
     
     if (existingEnvVars.RSA_PUBLIC_KEY && existingEnvVars.RSA_PRIVATE_KEY) {
       console.log('🔍 Found existing RSA keys in .env file, using them...');
-      publicKeyPEM = existingEnvVars.RSA_PUBLIC_KEY.replace(/\\n/g, '\n');
-      privateKeyPEM = existingEnvVars.RSA_PRIVATE_KEY.replace(/\\n/g, '\n');
+      publicKeyPEM = existingEnvVars.RSA_PUBLIC_KEY;
+      privateKeyPEM = existingEnvVars.RSA_PRIVATE_KEY;
       console.log('✅ Using existing RSA key pair');
     } else {
       console.log('🔄 No existing RSA keys found, generating new RSA key pair...');
@@ -97,24 +142,69 @@ async function encryptPlatformApiKey() {
 
     // Prepare new environment variables
     const newEnvVars = {
-      RSA_PUBLIC_KEY: publicKeyPEM.replace(/\n/g, '\\n'),
-      RSA_PRIVATE_KEY: privateKeyPEM.replace(/\n/g, '\\n'),
+      RSA_PUBLIC_KEY: publicKeyPEM,
+      RSA_PRIVATE_KEY: privateKeyPEM,
       ENCRYPTED_PLATFORM_API_KEY: 'rsa:' + encryptedApiKey
     };
 
-    // Update or add environment variables
-    let updatedEnvContent = envContent;
+    // Update or add environment variables by reconstructing the .env file
+    const updatedEnvVars = { ...existingEnvVars, ...newEnvVars };
     
-    for (const [key, value] of Object.entries(newEnvVars)) {
-      const regex = new RegExp(`^${key}=.*$`, 'm');
-      const newLine = `${key}="${value}"`;
+    // Rebuild .env content
+    let updatedEnvContent = '';
+    const lines = envContent.split('\n');
+    let skipUntilNextKey = false;
+    let processedKeys = new Set();
+    
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const trimmedLine = line.trim();
       
-      if (regex.test(updatedEnvContent)) {
-        updatedEnvContent = updatedEnvContent.replace(regex, newLine);
-        console.log(`🔄 Updated ${key} in .env file`);
+      // Skip empty lines and comments, but preserve them
+      if (!trimmedLine || trimmedLine.startsWith('#')) {
+        if (!skipUntilNextKey) {
+          updatedEnvContent += line + '\n';
+        }
+        continue;
+      }
+      
+      // Check if this line starts a key=value pair
+      const equalIndex = line.indexOf('=');
+      if (equalIndex > 0 && !skipUntilNextKey) {
+        const key = line.substring(0, equalIndex).trim();
+        
+        // Check if this key is one we want to update
+        if (key in newEnvVars) {
+          // Add the updated value
+          updatedEnvContent += `${key}="${newEnvVars[key]}"\n`;
+          processedKeys.add(key);
+          console.log(`🔄 Updated ${key} in .env file`);
+          
+          // Check if this is a multi-line quoted value that we need to skip
+          let value = line.substring(equalIndex + 1).trim();
+          if ((value.startsWith('"') || value.startsWith("'")) && !value.endsWith(value[0])) {
+            skipUntilNextKey = true;
+          }
+        } else {
+          // Keep the existing key-value pair
+          updatedEnvContent += line + '\n';
+        }
+      } else if (skipUntilNextKey) {
+        // We're inside a multi-line value that we're replacing, so skip this line
+        // Check if this line ends the quoted value
+        if (line.endsWith('"') || line.endsWith("'")) {
+          skipUntilNextKey = false;
+        }
       } else {
-        updatedEnvContent += updatedEnvContent.endsWith('\n') ? '' : '\n';
-        updatedEnvContent += newLine + '\n';
+        // This is a continuation of a multi-line value we're keeping
+        updatedEnvContent += line + '\n';
+      }
+    }
+    
+    // Add any new keys that weren't in the original file
+    for (const [key, value] of Object.entries(newEnvVars)) {
+      if (!processedKeys.has(key)) {
+        updatedEnvContent += `${key}="${value}"\n`;
         console.log(`➕ Added ${key} to .env file`);
       }
     }
@@ -139,8 +229,8 @@ async function encryptPlatformApiKey() {
     // Test decryption
     console.log('\n🧪 Testing decryption...');
     
-    // Restore original line breaks for testing
-    const testPrivateKey = newEnvVars.RSA_PRIVATE_KEY.replace(/\\n/g, '\n');
+    // Use the private key directly
+    const testPrivateKey = privateKeyPEM;
     
          // Test decryption directly
      let decryptedKey;

@@ -11,8 +11,13 @@ class RSACrypto {
   // Initialize RSA key pair from environment or generate new ones
   initializeKeys() {
     if (process.env.RSA_PUBLIC_KEY && process.env.RSA_PRIVATE_KEY) {
-      this.publicKeyPEM = process.env.RSA_PUBLIC_KEY.replace(/\\n/g, '\n');
-      this.privateKeyPEM = process.env.RSA_PRIVATE_KEY.replace(/\\n/g, '\n');
+      // Handle both escaped and non-escaped newlines (for compatibility)
+      this.publicKeyPEM = process.env.RSA_PUBLIC_KEY.includes('\\n') 
+        ? process.env.RSA_PUBLIC_KEY.replace(/\\n/g, '\n')
+        : process.env.RSA_PUBLIC_KEY;
+      this.privateKeyPEM = process.env.RSA_PRIVATE_KEY.includes('\\n')
+        ? process.env.RSA_PRIVATE_KEY.replace(/\\n/g, '\n')
+        : process.env.RSA_PRIVATE_KEY;
     } else {
       console.warn('RSA keys not found in environment. Generating new keys...');
       const keyPair = this.generateKeyPair();
@@ -52,9 +57,6 @@ class RSACrypto {
         throw new Error('Invalid plaintext for encryption');
       }
 
-      // Load public key
-      const pubKeyObj = KEYUTIL.getKey(this.publicKeyPEM);
-      
       // Convert plaintext to buffer
       const buffer = Buffer.from(plaintext, 'utf8');
       
