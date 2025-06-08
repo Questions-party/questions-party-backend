@@ -1,7 +1,5 @@
 分析这个句子: "{sentence}"
 
-{languageInstruction}
-
 请严格按照以下格式输出（输出示例）：
 
 GRAMMAR_ANALYSIS(Parsing required):

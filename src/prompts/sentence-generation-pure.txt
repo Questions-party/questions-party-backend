@@ -1,7 +1,5 @@
 Create a natural sentence using ALL these words: {words}
 
-{languageInstruction}
-
 Follow this exact format (Output Example):
 
 SENTENCE(Parsing required):

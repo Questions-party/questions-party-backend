@@ -1,7 +1,5 @@
 Analyze this sentence: "{sentence}"
 
-{languageInstruction}
-
 Follow this exact format (Output Example):
 
 GRAMMAR_ANALYSIS(Parsing required):

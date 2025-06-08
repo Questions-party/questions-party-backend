@@ -1,16 +1,16 @@
 # AI Prompt System
 
-This directory contains the modular prompt templates used by the AI service for generating responses. The prompts are separated into different files to allow for easy maintenance and multi-language support.
+This directory contains the modular prompt templates used by the AI service for generating responses. The prompts are separated into different files based on grammar language options to allow for easy maintenance and customization.
 
 ## File Structure
 
 ```
 src/prompts/
-├── sentence-check-en.txt       # English template for sentence checking
-├── sentence-check-zh.txt       # Chinese template for sentence checking
-├── sentence-generation-en.txt  # English template for sentence generation
-├── sentence-generation-zh.txt  # Chinese template for sentence generation
-└── README.md                   # This documentation file
+├── sentence-check-pure.txt        # English-only template for sentence checking
+├── sentence-check-combined.txt    # Bilingual (English + Chinese) template for sentence checking
+├── sentence-generation-pure.txt   # English-only template for sentence generation
+├── sentence-generation-combined.txt  # Bilingual (English + Chinese) template for sentence generation
+└── README.md                      # This documentation file
 ```
 
 ## Template Variables
@@ -19,31 +19,30 @@ Each prompt template supports variable substitution:
 
 ### Sentence Check Templates
 - `{sentence}` - The sentence to be analyzed
-- `{languageInstruction}` - Dynamic instruction based on grammar language option
 
 ### Sentence Generation Templates
 - `{words}` - Comma-separated list of words to use in the sentence
-- `{languageInstruction}` - Dynamic instruction based on grammar language option
 
-## Language Support
+## Grammar Language Options
 
-### English Templates (`-en.txt`)
+### Pure Templates (`-pure.txt`)
+- Provide explanations in English only
 - Use English instructions and examples
 - Maintain consistent formatting with markdown-style headers
 - Follow the exact parsing format expected by the response parser
 
-### Chinese Templates (`-zh.txt`)
-- Use Chinese instructions and examples
-- Translate section headers (e.g., "**Subject Analysis**" → "**主语分析**")
+### Combined Templates (`-combined.txt`)
+- Provide explanations in both English and Chinese
+- Use Chinese instructions at the top, bilingual content in sections
+- Include Chinese translations and explanations alongside English content
 - Maintain the same structural markers for parsing compatibility
-- Provide Chinese explanations while keeping English examples for consistency
 
 ## Usage in Code
 
 The prompt loader utility (`src/utils/promptLoader.js`) handles:
-- Loading and caching prompt templates
+- Loading and caching prompt templates based on grammar language option
 - Variable substitution
-- Fallback to English if Chinese templates fail
+- Fallback to combined version if pure version fails
 - Validation of prompt file availability
 
 ### Example Usage
@@ -51,34 +50,32 @@ The prompt loader utility (`src/utils/promptLoader.js`) handles:
 ```javascript
 const promptLoader = require('../utils/promptLoader');
 
-// Load English sentence check prompt
+// Load English-only sentence check prompt
 const prompt = promptLoader.getSentenceCheckPrompt(
     'She reads books',
-    'combined',
-    'en'
+    'pure'
 );
 
-// Load Chinese sentence generation prompt
+// Load bilingual sentence generation prompt
 const prompt = promptLoader.getSentenceGenerationPrompt(
     ['quick', 'brown', 'fox'],
-    'pure',
-    'zh'
+    'combined'
 );
 ```
 
 ## Adding New Prompts
 
-1. Create new template files following the naming convention: `{type}-{locale}.txt`
+1. Create new template files following the naming convention: `{type}-{option}.txt`
 2. Update the `promptLoader.js` validation method to include new files
 3. Add new methods to the prompt loader for the specific prompt type
 4. Update the AI service to use the new prompts
 
 ## Best Practices
 
-1. **Consistency**: Keep the same structural markers across all language versions
+1. **Consistency**: Keep the same structural markers across all grammar language versions
 2. **Formatting**: Maintain consistent markdown formatting and indentation
 3. **Examples**: Use clear, educational examples that demonstrate the concept
-4. **Translation**: When translating, focus on clarity and educational value
+4. **Language Balance**: In combined templates, balance English and Chinese content for maximum educational value
 5. **Testing**: Always test prompt changes with the actual AI service
 
 ## Cache Management

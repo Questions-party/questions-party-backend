@@ -154,10 +154,9 @@ class AIService {
      * @param {string} userId - User ID (optional)
      * @param {string} grammarLanguageOption - Grammar explanation language option ('combined' or 'pure')
      * @param {string} locale - Locale for error messages (default: 'en')
-     * @param {string} promptLocale - Locale for prompt templates ('en' or 'zh', default: 'en')
      * @returns {Object} Sentence check result
      */
-    async checkSentence(sentence, userId = null, grammarLanguageOption = 'combined', locale = 'en', promptLocale = 'en') {
+    async checkSentence(sentence, userId = null, grammarLanguageOption = 'combined', locale = 'en') {
         // Validate sentence first
         this.validateSentence(sentence);
 
@@ -175,11 +174,8 @@ class AIService {
         }
 
         try {
-            // Validate prompt locale
-            const validatedPromptLocale = ['en', 'zh'].includes(promptLocale) ? promptLocale : 'en';
-            
             // Create structured prompt for sentence checking using prompt loader
-            const prompt = promptLoader.getSentenceCheckPrompt(sentence, grammarLanguageOption, validatedPromptLocale);
+            const prompt = promptLoader.getSentenceCheckPrompt(sentence, grammarLanguageOption);
 
             // Prepare request data using configuration
             const {headers, requestBody} = HttpUtils.prepareRequestData(
@@ -299,10 +295,9 @@ class AIService {
      * @param {Array} conversationHistory - Previous messages (optional)
      * @param {string} grammarLanguageOption - Grammar explanation language option ('combined' or 'pure')
      * @param {string} locale - Locale for error messages (default: 'en')
-     * @param {string} promptLocale - Locale for prompt templates ('en' or 'zh', default: 'en')
      * @returns {Object} Generated sentence and explanation
      */
-    async generateSentence(words, userId = null, conversationHistory = [], grammarLanguageOption = 'combined', locale = 'en', promptLocale = 'en') {
+    async generateSentence(words, userId = null, conversationHistory = [], grammarLanguageOption = 'combined', locale = 'en') {
         // Validate words first
         const cleanedWords = this.validateWords(words);
 
@@ -320,11 +315,8 @@ class AIService {
         }
 
         try {
-            // Validate prompt locale
-            const validatedPromptLocale = ['en', 'zh'].includes(promptLocale) ? promptLocale : 'en';
-            
             // Create structured prompt for consistent output format using prompt loader
-            const prompt = promptLoader.getSentenceGenerationPrompt(cleanedWords, grammarLanguageOption, validatedPromptLocale);
+            const prompt = promptLoader.getSentenceGenerationPrompt(cleanedWords, grammarLanguageOption);
 
             // Prepare request data using configuration
             const {headers, requestBody} = HttpUtils.prepareRequestData(

@@ -10,11 +10,11 @@ class PromptLoader {
     /**
      * Load a prompt template from file with caching
      * @param {string} type - Type of prompt ('sentence-check' or 'sentence-generation')
-     * @param {string} locale - Locale ('en' or 'zh')
+     * @param {string} grammarLanguageOption - Grammar language option ('combined' or 'pure')
      * @returns {string} Prompt template
      */
-    loadPrompt(type, locale = 'en') {
-        const cacheKey = `${type}-${locale}`;
+    loadPrompt(type, grammarLanguageOption = 'combined') {
+        const cacheKey = `${type}-${grammarLanguageOption}`;
         
         // Return cached version if available
         if (this.promptCache.has(cacheKey)) {
@@ -22,7 +22,7 @@ class PromptLoader {
         }
 
         try {
-            const filename = `${type}-${locale}.txt`;
+            const filename = `${type}-${grammarLanguageOption}.txt`;
             const filepath = path.join(this.promptsDir, filename);
             
             if (!fs.existsSync(filepath)) {
@@ -36,16 +36,16 @@ class PromptLoader {
             
             return promptTemplate;
         } catch (error) {
-            console.error(`Error loading prompt ${type}-${locale}:`, error.message);
+            console.error(`Error loading prompt ${type}-${grammarLanguageOption}:`, error.message);
             
-            // Fallback to English if Chinese version fails
-            if (locale === 'zh') {
-                console.warn(`Falling back to English prompt for ${type}`);
-                return this.loadPrompt(type, 'en');
+            // Fallback to combined version if pure version fails
+            if (grammarLanguageOption === 'pure') {
+                console.warn(`Falling back to combined prompt for ${type}`);
+                return this.loadPrompt(type, 'combined');
             }
             
-            // If English also fails, throw error
-            throw new Error(`Failed to load prompt template: ${type}-${locale}`);
+            // If combined also fails, throw error
+            throw new Error(`Failed to load prompt template: ${type}-${grammarLanguageOption}`);
         }
     }
 
@@ -53,55 +53,26 @@ class PromptLoader {
      * Get sentence check prompt with replacements
      * @param {string} sentence - Sentence to analyze
      * @param {string} grammarLanguageOption - Language option ('combined' or 'pure')
-     * @param {string} locale - Locale ('en' or 'zh')
      * @returns {string} Formatted prompt
      */
-    getSentenceCheckPrompt(sentence, grammarLanguageOption = 'combined', locale = 'en') {
-        const template = this.loadPrompt('sentence-check', locale);
+    getSentenceCheckPrompt(sentence, grammarLanguageOption = 'combined') {
+        const template = this.loadPrompt('sentence-check', grammarLanguageOption);
         
-        const languageInstruction = this.getLanguageInstruction(grammarLanguageOption, locale);
-        
-        return template
-            .replace('{sentence}', sentence)
-            .replace('{languageInstruction}', languageInstruction);
+        return template.replace('{sentence}', sentence);
     }
 
     /**
      * Get sentence generation prompt with replacements
      * @param {Array} words - Array of words to use
      * @param {string} grammarLanguageOption - Language option ('combined' or 'pure')
-     * @param {string} locale - Locale ('en' or 'zh')
      * @returns {string} Formatted prompt
      */
-    getSentenceGenerationPrompt(words, grammarLanguageOption = 'combined', locale = 'en') {
-        const template = this.loadPrompt('sentence-generation', locale);
+    getSentenceGenerationPrompt(words, grammarLanguageOption = 'combined') {
+        const template = this.loadPrompt('sentence-generation', grammarLanguageOption);
         
-        const languageInstruction = this.getLanguageInstruction(grammarLanguageOption, locale);
         const wordsString = Array.isArray(words) ? words.join(', ') : words;
         
-        return template
-            .replace('{words}', wordsString)
-            .replace('{languageInstruction}', languageInstruction);
-    }
-
-    /**
-     * Get language instruction based on option and locale
-     * @param {string} grammarLanguageOption - Language option ('combined' or 'pure')
-     * @param {string} locale - Locale ('en' or 'zh')
-     * @returns {string} Language instruction
-     */
-    getLanguageInstruction(grammarLanguageOption, locale) {
-        const isEnglishOnly = grammarLanguageOption === 'pure';
-        
-        if (locale === 'zh') {
-            return isEnglishOnly
-                ? "仅用英语提供解释。"
-                : "用英语和中文提供解释。";
-        } else {
-            return isEnglishOnly
-                ? "Provide explanations in English only."
-                : "Provide explanations in both English and Chinese.";
-        }
+        return template.replace('{words}', wordsString);
     }
 
     /**
@@ -128,10 +99,10 @@ class PromptLoader {
      */
     validatePromptFiles() {
         const requiredPrompts = [
-            'sentence-check-en.txt',
-            'sentence-check-zh.txt',
-            'sentence-generation-en.txt',
-            'sentence-generation-zh.txt'
+            'sentence-check-pure.txt',
+            'sentence-check-combined.txt',
+            'sentence-generation-pure.txt',
+            'sentence-generation-combined.txt'
         ];
 
         const missing = [];

@@ -1,7 +1,5 @@
 使用所有这些单词创建一个自然的句子: {words}
 
-{languageInstruction}
-
 请严格按照以下格式输出（输出示例）：
 
 SENTENCE(Parsing required):
