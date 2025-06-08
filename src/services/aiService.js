@@ -18,6 +18,7 @@ class AIService {
                 model: config.siliconflowModel || 'Qwen/QwQ-32B',
                 messages: [], // Populated dynamically
                 max_tokens: 512,
+                enable_thinking: false,
                 temperature: 0.7,
                 top_p: 0.7,
                 top_k: 50,
@@ -154,9 +155,10 @@ class AIService {
      * @param {string} userId - User ID (optional)
      * @param {string} grammarLanguageOption - Grammar explanation language option ('combined' or 'pure')
      * @param {string} locale - Locale for error messages (default: 'en')
+     * @param {boolean} enableThinking - Whether to enable AI thinking process (default: false)
      * @returns {Object} Sentence check result
      */
-    async checkSentence(sentence, userId = null, grammarLanguageOption = 'combined', locale = 'en') {
+    async checkSentence(sentence, userId = null, grammarLanguageOption = 'combined', locale = 'en', enableThinking = false) {
         // Validate sentence first
         this.validateSentence(sentence);
 
@@ -177,9 +179,17 @@ class AIService {
             // Create structured prompt for sentence checking using prompt loader
             const prompt = promptLoader.getSentenceCheckPrompt(sentence, grammarLanguageOption);
 
-            // Prepare request data using configuration
+            // Prepare request data using configuration with thinking enabled/disabled
+            const requestConfig = {
+                ...aiConfig,
+                requestTemplate: {
+                    ...aiConfig.requestTemplate,
+                    enable_thinking: enableThinking
+                }
+            };
+
             const {headers, requestBody} = HttpUtils.prepareRequestData(
-                aiConfig,
+                requestConfig,
                 prompt,
                 [] // No conversation history for sentence checking
             );
@@ -295,9 +305,10 @@ class AIService {
      * @param {Array} conversationHistory - Previous messages (optional)
      * @param {string} grammarLanguageOption - Grammar explanation language option ('combined' or 'pure')
      * @param {string} locale - Locale for error messages (default: 'en')
+     * @param {boolean} enableThinking - Whether to enable AI thinking process (default: false)
      * @returns {Object} Generated sentence and explanation
      */
-    async generateSentence(words, userId = null, conversationHistory = [], grammarLanguageOption = 'combined', locale = 'en') {
+    async generateSentence(words, userId = null, conversationHistory = [], grammarLanguageOption = 'combined', locale = 'en', enableThinking = false) {
         // Validate words first
         const cleanedWords = this.validateWords(words);
 
@@ -318,9 +329,17 @@ class AIService {
             // Create structured prompt for consistent output format using prompt loader
             const prompt = promptLoader.getSentenceGenerationPrompt(cleanedWords, grammarLanguageOption);
 
-            // Prepare request data using configuration
+            // Prepare request data using configuration with thinking enabled/disabled
+            const requestConfig = {
+                ...aiConfig,
+                requestTemplate: {
+                    ...aiConfig.requestTemplate,
+                    enable_thinking: enableThinking
+                }
+            };
+
             const {headers, requestBody} = HttpUtils.prepareRequestData(
-                aiConfig,
+                requestConfig,
                 prompt,
                 conversationHistory
             );
@@ -425,10 +444,6 @@ class AIService {
             }
         }
     }
-
-
-
-
 
     /**
      * Parse structured sentence check AI response with robust error handling

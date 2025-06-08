@@ -9,7 +9,8 @@ const checkSentenceSchema = Joi.object({
   sentence: Joi.string().min(1).max(800).required(),
   isPublic: Joi.boolean().default(true),
   maxRetries: Joi.number().integer().min(1).max(10).default(3),
-  grammarLanguage: Joi.string().valid('combined', 'pure').default('combined')
+  grammarLanguage: Joi.string().valid('combined', 'pure').default('combined'),
+  enableThinking: Joi.boolean().default(false)
 });
 
 const publicChecksSchema = Joi.object({
@@ -32,7 +33,7 @@ exports.checkSentence = async (req, res) => {
       });
     }
 
-    const { sentence, isPublic, maxRetries, grammarLanguage } = req.body;
+    const { sentence, isPublic, maxRetries, grammarLanguage, enableThinking } = req.body;
 
     // Get user's grammar explanation language preference (fallback to request body or default)
     const user = await User.findById(req.user.id).select('preferences.grammarExplanationLanguage');
@@ -41,7 +42,7 @@ exports.checkSentence = async (req, res) => {
     // Check sentence using AI
     let aiResult;
     try {
-      aiResult = await aiService.checkSentence(sentence, req.user.id, grammarLanguageOption, req.locale);
+      aiResult = await aiService.checkSentence(sentence, req.user.id, grammarLanguageOption, req.locale, enableThinking);
     } catch (aiError) {
       return res.status(500).json({
         success: false,

@@ -11,7 +11,8 @@ const generateSentenceSchema = Joi.object({
   words: Joi.array().items(Joi.string().min(1).max(50)).min(1).max(20).required(),
   isPublic: Joi.boolean().default(true),
   maxRetries: Joi.number().integer().min(1).max(10).default(3),
-  grammarLanguage: Joi.string().valid('combined', 'pure').default('combined')
+  grammarLanguage: Joi.string().valid('combined', 'pure').default('combined'),
+  enableThinking: Joi.boolean().default(false)
 });
 
 const publicGenerationsSchema = Joi.object({
@@ -34,7 +35,7 @@ exports.generateSentence = async (req, res) => {
       });
     }
 
-    const { words, isPublic, maxRetries, grammarLanguage } = req.body;
+    const { words, isPublic, maxRetries, grammarLanguage, enableThinking } = req.body;
 
     // Get user's grammar explanation language preference (fallback to request body or default)
     const user = await User.findById(req.user.id).select('preferences.grammarExplanationLanguage');
@@ -43,7 +44,7 @@ exports.generateSentence = async (req, res) => {
     // Generate sentence using AI with the Java-inspired service
     let aiResult;
     try {
-      aiResult = await aiService.generateSentence(words, req.user.id, [], grammarLanguageOption, req.locale);
+      aiResult = await aiService.generateSentence(words, req.user.id, [], grammarLanguageOption, req.locale, enableThinking);
     } catch (aiError) {
       return res.status(500).json({
         success: false,
