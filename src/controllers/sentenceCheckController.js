@@ -71,7 +71,7 @@ exports.checkSentence = async (req, res) => {
       thinkingText: aiResult.thinking,
       rawResponseContent: aiResult.rawResponse ? JSON.stringify(aiResult.rawResponse) : null,
       isPublic: isPublic !== false,
-      aiModel: aiResult.aiModel || 'Qwen/QwQ-32B',
+      aiModel: aiResult.aiModel || 'Qwen/Qwen3-8B',
       grammarLanguageOption: grammarLanguageOption,
       modelSelection: aiResult.modelSelection ? {
         inputSize: aiResult.modelSelection.inputSize,

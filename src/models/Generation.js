@@ -65,7 +65,7 @@ const generationSchema = new mongoose.Schema({
   },
   aiModel: {
     type: String,
-    default: 'Qwen/QwQ-32B' // Updated default to SiliconFlow model
+    default: 'Qwen/Qwen3-8B' // Updated default to SiliconFlow model
   },
   promptVersion: {
     type: String,

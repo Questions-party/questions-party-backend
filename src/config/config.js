@@ -32,7 +32,7 @@ module.exports = {
     siliconflowModelMedium: process.env.SILICONFLOW_MODEL_MEDIUM || 'Qwen/Qwen3-14B',
     siliconflowModelHeavy: process.env.SILICONFLOW_MODEL_HEAVY || 'Qwen/Qwen3-30B-A3B',
     // Legacy model for backward compatibility
-    siliconflowModel: process.env.SILICONFLOW_MODEL || 'Qwen/QwQ-32B',
+    siliconflowModel: process.env.SILICONFLOW_MODEL || 'Qwen/Qwen3-8B',
     nodeEnv: process.env.NODE_ENV || 'development',
     frontendUrl: process.env.FRONTEND_URL || 'http://localhost:3000',
     rateLimitWindowMs: 2 * 60 * 1000, // 2 minutes

@@ -11,11 +11,11 @@ class AIService {
         this.platformConfig = {
             name: "SiliconFlow/Qwen Platform",
             apiUrl: config.siliconflowApiUrl || 'https://api.siliconflow.cn/v1/chat/completions',
-            model: config.siliconflowModel || 'Qwen/QwQ-32B',
+            model: config.siliconflowModel || 'Qwen/Qwen3-8B',
             apiKeyPlacement: "header",
 
             requestTemplate: {
-                model: config.siliconflowModel || 'Qwen/QwQ-32B',
+                model: config.siliconflowModel || 'Qwen/Qwen3-8B',
                 messages: [], // Populated dynamically
                 max_tokens: 512,
                 enable_thinking: false,
@@ -83,10 +83,10 @@ class AIService {
      */
     selectModelByComplexity(type, inputSize) {
         const thresholds = this.modelThresholds[type];
-        
+
         if (!thresholds) {
             console.warn(`Unknown operation type: ${type}, using default model`);
-            return config.siliconflowModel || 'Qwen/QwQ-32B';
+            return config.siliconflowModel || 'Qwen/Qwen3-8B';
         }
 
         if (inputSize < thresholds.lightThreshold) {
@@ -106,7 +106,7 @@ class AIService {
      */
     async getConfigurationForUser(userId, selectedModel = null) {
         const modelToUse = selectedModel || this.platformConfig.model;
-        
+
         if (!userId) {
             // Use platform default API key for anonymous users
             return {
@@ -165,7 +165,7 @@ class AIService {
         // Dynamic model selection based on sentence length
         const sentenceLength = sentence.trim().length;
         const selectedModel = this.selectModelByComplexity('sentenceCheck', sentenceLength);
-        
+
         console.log(`Dynamic model selection for sentence check: ${sentenceLength} chars -> ${selectedModel}`);
 
         // Get configuration for user with selected model
@@ -227,10 +227,10 @@ class AIService {
                 };
             } else {
                 // Check if this is a partial parse that we should accept
-                const hasAnyUsefulContent = parsedResponse.grammarAnalysis || 
-                                          parsedResponse.grammarCorrection || 
-                                          parsedResponse.keywordAnalysis || 
-                                          parsedResponse.chineseDefinition;
+                const hasAnyUsefulContent = parsedResponse.grammarAnalysis ||
+                    parsedResponse.grammarCorrection ||
+                    parsedResponse.keywordAnalysis ||
+                    parsedResponse.chineseDefinition;
 
                 if (hasAnyUsefulContent) {
                     // Accept partial parse if we have some useful content
@@ -315,7 +315,7 @@ class AIService {
         // Dynamic model selection based on word count
         const wordCount = cleanedWords.length;
         const selectedModel = this.selectModelByComplexity('wordGeneration', wordCount);
-        
+
         console.log(`Dynamic model selection for word generation: ${wordCount} words -> ${selectedModel}`);
 
         // Get configuration for user with selected model
@@ -376,9 +376,9 @@ class AIService {
                 };
             } else {
                 // Check if this is a partial parse that we should accept
-                const hasAnyUsefulContent = parsedResponse.sentence || 
-                                          parsedResponse.grammarAnalysis || 
-                                          parsedResponse.chineseTranslation;
+                const hasAnyUsefulContent = parsedResponse.sentence ||
+                    parsedResponse.grammarAnalysis ||
+                    parsedResponse.chineseTranslation;
 
                 if (hasAnyUsefulContent) {
                     // Accept partial parse if we have some useful content
@@ -514,7 +514,7 @@ class AIService {
             });
 
             // Validate that at least some meaningful content was extracted
-            const hasValidContent = Object.values(sections).some(section => 
+            const hasValidContent = Object.values(sections).some(section =>
                 section && section.length >= 10
             );
 
@@ -624,7 +624,7 @@ class AIService {
             });
 
             // Validate that at least some meaningful content was extracted
-            const hasValidContent = Object.values(sections).some(section => 
+            const hasValidContent = Object.values(sections).some(section =>
                 section && section.length >= 5
             );
 
@@ -715,26 +715,26 @@ class AIService {
         // For sentence checking response
         if (markers.grammarAnalysisMarker) {
             sections.grammarAnalysis = this.extractSection(
-                content, 
-                markers.grammarAnalysisMarker, 
+                content,
+                markers.grammarAnalysisMarker,
                 [markers.grammarCorrectionMarker, markers.keywordAnalysisMarker, markers.chineseDefinitionMarker, markers.endMarker]
             );
 
             sections.grammarCorrection = this.extractSection(
-                content, 
-                markers.grammarCorrectionMarker, 
+                content,
+                markers.grammarCorrectionMarker,
                 [markers.keywordAnalysisMarker, markers.chineseDefinitionMarker, markers.endMarker]
             );
 
             sections.keywordAnalysis = this.extractSection(
-                content, 
-                markers.keywordAnalysisMarker, 
+                content,
+                markers.keywordAnalysisMarker,
                 [markers.chineseDefinitionMarker, markers.endMarker]
             );
 
             sections.chineseDefinition = this.extractSection(
-                content, 
-                markers.chineseDefinitionMarker, 
+                content,
+                markers.chineseDefinitionMarker,
                 [markers.endMarker]
             );
         }
@@ -742,20 +742,20 @@ class AIService {
         // For sentence generation response
         if (markers.sentenceMarker) {
             sections.sentence = this.extractSection(
-                content, 
-                markers.sentenceMarker, 
+                content,
+                markers.sentenceMarker,
                 [markers.grammarMarker, markers.chineseMarker, markers.endMarker]
             );
 
             sections.grammarAnalysis = this.extractSection(
-                content, 
-                markers.grammarMarker, 
+                content,
+                markers.grammarMarker,
                 [markers.chineseMarker, markers.endMarker]
             );
 
             sections.chineseTranslation = this.extractSection(
-                content, 
-                markers.chineseMarker, 
+                content,
+                markers.chineseMarker,
                 [markers.endMarker]
             );
         }
@@ -777,10 +777,10 @@ class AIService {
         }
 
         const contentStart = startIndex + startMarker.length;
-        
+
         // Find the earliest end marker
         let endIndex = content.length; // Default to end of content
-        
+
         for (const endMarker of endMarkers) {
             const markerIndex = content.indexOf(endMarker, contentStart);
             if (markerIndex !== -1 && markerIndex < endIndex) {
@@ -789,7 +789,7 @@ class AIService {
         }
 
         const extractedContent = content.substring(contentStart, endIndex).trim();
-        
+
         // Return content only if it has meaningful length
         return extractedContent.length >= 5 ? extractedContent : null;
     }
@@ -804,6 +804,7 @@ class AIService {
             // Create test configuration
             const testConfig = {
                 ...this.platformConfig,
+                enable_thinking: true,
                 apiKey: apiKey
             };
 

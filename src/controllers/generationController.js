@@ -72,7 +72,7 @@ exports.generateSentence = async (req, res) => {
       thinkingText: aiResult.thinking, // Support for QwQ reasoning
       rawResponseContent: aiResult.rawResponse ? JSON.stringify(aiResult.rawResponse) : null,
       isPublic: isPublic !== false, // default to true if not specified
-      aiModel: aiResult.aiModel || 'Qwen/QwQ-32B',
+      aiModel: aiResult.aiModel || 'Qwen/Qwen3-8B',
       modelSelection: aiResult.modelSelection ? {
         inputSize: aiResult.modelSelection.inputSize,
         selectedModel: aiResult.modelSelection.selectedModel,

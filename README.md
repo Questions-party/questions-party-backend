@@ -101,7 +101,7 @@ SILICONFLOW_MODEL_MEDIUM=Qwen/Qwen3-14B
 SILICONFLOW_MODEL_HEAVY=Qwen/Qwen3-30B-A3B
 
 # Legacy model for backward compatibility
-SILICONFLOW_MODEL=Qwen/QwQ-32B
+SILICONFLOW_MODEL=Qwen/Qwen3-8B
 
 # AI Service - OpenAI (Optional/Backup)
 OPENAI_API_KEY=your_openai_api_key_here
@@ -231,7 +231,7 @@ The API supports public access for viewing content without authentication:
     createdAt: Date
   }],
   likeCount: Number, // denormalized
-  aiModel: String, // AI model used (default: Qwen/QwQ-32B)
+  aiModel: String, // AI model used (default: Qwen/Qwen3-8B)
   promptVersion: String, // prompt version
   // Dynamic model selection information
   modelSelection: {

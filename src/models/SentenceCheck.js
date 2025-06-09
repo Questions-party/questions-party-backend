@@ -65,7 +65,7 @@ const sentenceCheckSchema = new mongoose.Schema({
   },
   aiModel: {
     type: String,
-    default: 'Qwen/QwQ-32B'
+    default: 'Qwen/Qwen3-8B'
   },
   promptVersion: {
     type: String,
