@@ -1,10 +1,12 @@
 {
   "auth": {
     "serverErrorRegistration": "Server error during registration",
+    "userWithFieldExists": "User with this {{field}} already exists",
     "invalidCredentials": "Invalid credentials",
     "serverErrorLogin": "Server error during login",
     "serverErrorGettingUserInfo": "Server error getting user info",
     "serverErrorUpdatingProfile": "Server error updating profile",
+    "fieldTaken": "This {{field}} is already taken",
     "serverErrorUpdatingPreferences": "Server error updating preferences",
     "notAuthorized": "Not authorized, no token provided",
     "notAuthorizedUserNotFound": "Not authorized, user not found",
@@ -15,6 +17,7 @@
     "apiKeyUpdatedSuccessfully": "API key updated successfully",
     "serverError": "Server error occurred",
     "apiKeyValidationSuccessful": "API key validation successful",
+    "apiKeyValidationFailed": "API key validation failed: {{error}}",
     "fontSettingsUpdatedSuccessfully": "Font settings updated successfully",
     "serverErrorUpdatingFontSettings": "Server error updating font settings"
   },
@@ -65,9 +68,15 @@
   },
   "common": {
     "badRequest": "Bad request",
-    "success": "Operation completed successfully"
+    "success": "Operation completed successfully",
+    "routeNotFound": "Route {{route}} not found"
   },
   "ai": {
+    "noValidMarkers": "No valid format markers found in AI response",
+    "noValidContent": "No valid content could be extracted from AI response",
+    "parseError": "Failed to parse AI response: {{message}}",
+    "checkFailed": "AI sentence check failed: {{message}}",
+    "generationFailed": "AI sentence generation failed: {{message}}"
   },
   "apiKey": {
   },

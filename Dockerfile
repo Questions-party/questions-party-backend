@@ -1,32 +1,20 @@
- # Use Node.js official image
-FROM node:18-alpine
+# Use official Node.js image as the base image
+FROM node:20-alpine
 
-# Set working directory
-WORKDIR /app
+# Set the working directory
+WORKDIR /usr/src/app
 
-# Copy package files
+# Copy package.json and package-lock.json
 COPY package*.json ./
 
-# Install dependencies
+# Install project dependencies
 RUN npm ci --only=production
 
-# Copy source code
+# Copy project source code
 COPY . .
 
-# Create a non-root user
-RUN addgroup -g 1001 -S nodejs
-RUN adduser -S nodejs -u 1001
-
-# Change ownership of the app directory to the nodejs user
-RUN chown -R nodejs:nodejs /app
-USER nodejs
-
-# Expose the port the app runs on
+# Expose the port the application runs on
 EXPOSE 5000
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:5000/api/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) }).on('error', () => process.exit(1))"
-
-# Start the application
-CMD ["npm", "start"]
+# Start command (modify based on your startup script)
+CMD ["node", "app.js"]

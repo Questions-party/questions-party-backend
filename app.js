@@ -6,8 +6,8 @@ const morgan = require('morgan');
 const connectDB = require('./src/config/database');
 const errorHandler = require('./src/middleware/errorHandler');
 const {apiLimiter, publicContentLimiter, aiLimiter, authLimiter} = require('./src/middleware/rateLimiter');
-const { i18nMiddleware } = require('./src/middleware/i18n');
-const { optionalAuth } = require('./src/middleware/auth');
+const {i18nMiddleware} = require('./src/middleware/i18n');
+const {optionalAuth} = require('./src/middleware/auth');
 const i18n = require('./src/utils/i18n');
 const config = require('./src/config/config');
 
@@ -17,7 +17,14 @@ connectDB();
 const app = express();
 
 // Security middleware
-app.use(helmet());
+app.use(helmet({
+    contentSecurityPolicy: {
+        directives: {
+            defaultSrc: ["'self'"],
+            scriptSrc: ["'self'"]
+        }
+    }
+}));
 
 // CORS configuration
 app.use(cors({
@@ -83,8 +90,8 @@ app.get('/api/i18n', (req, res) => {
         locale: req.locale,
         supportedLocales: i18n.getSupportedLocales(),
         defaultLocale: i18n.defaultLocale,
-        detectedFromHeader: req.headers['accept-language'] ? 
-            i18n.detectLocale(req.headers['accept-language']) : 
+        detectedFromHeader: req.headers['accept-language'] ?
+            i18n.detectLocale(req.headers['accept-language']) :
             i18n.defaultLocale
     });
 });
@@ -145,7 +152,7 @@ app.get('/', (req, res) => {
 
 // Catch 404 and forward to error handler
 app.use('*', (req, res, next) => {
-    const error = new Error(req.t('common.routeNotFound', { route: req.originalUrl }));
+    const error = new Error(req.t('common.routeNotFound', {route: req.originalUrl}));
     error.statusCode = 404;
     next(error);
 });

@@ -1,10 +1,12 @@
 {
   "auth": {
     "serverErrorRegistration": "注册过程中出现服务器错误",
+    "userWithFieldExists": "已存在使用此{{field}}的用户",
     "invalidCredentials": "用户凭证无效",
     "serverErrorLogin": "登录过程中出现服务器错误",
     "serverErrorGettingUserInfo": "获取用户信息时出现服务器错误",
     "serverErrorUpdatingProfile": "更新个人资料时出现服务器错误",
+    "fieldTaken": "此{{field}}已被占用",
     "serverErrorUpdatingPreferences": "更新偏好设置时出现服务器错误",
     "notAuthorized": "未授权，未提供令牌",
     "notAuthorizedUserNotFound": "未授权，用户未找到",
@@ -15,6 +17,7 @@
     "apiKeyUpdatedSuccessfully": "API密钥更新成功",
     "serverError": "服务器错误",
     "apiKeyValidationSuccessful": "API密钥验证成功",
+    "apiKeyValidationFailed": "API密钥验证失败：{{error}}",
     "fontSettingsUpdatedSuccessfully": "字体设置更新成功",
     "serverErrorUpdatingFontSettings": "更新字体设置时服务器错误"
   },
@@ -65,9 +68,15 @@
   },
   "common": {
     "badRequest": "请求错误",
-    "success": "操作成功完成"
+    "success": "操作成功完成",
+    "routeNotFound": "未找到路由 {{route}}"
   },
   "ai": {
+    "noValidMarkers": "AI响应中未找到有效的格式标记",
+    "noValidContent": "无法从AI响应中提取有效内容",
+    "parseError": "解析AI响应失败：{{message}}",
+    "checkFailed": "AI句子检查失败：{{message}}",
+    "generationFailed": "AI句子生成失败：{{message}}"
   },
   "apiKey": {
   },
