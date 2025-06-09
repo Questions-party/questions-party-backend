@@ -1,4 +1,4 @@
-const config = require('../../config/config');
+const config = require('../config/config');
 
 const errorHandler = (err, req, res, next) => {
   let error = { ...err };

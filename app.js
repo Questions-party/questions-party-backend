@@ -3,13 +3,13 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
-const connectDB = require('./config/database');
+const connectDB = require('./src/config/database');
 const errorHandler = require('./src/middleware/errorHandler');
 const {apiLimiter, publicContentLimiter, aiLimiter, authLimiter} = require('./src/middleware/rateLimiter');
 const { i18nMiddleware } = require('./src/middleware/i18n');
 const { optionalAuth } = require('./src/middleware/auth');
 const i18n = require('./src/utils/i18n');
-const config = require('./config/config');
+const config = require('./src/config/config');
 
 // Connect to database
 connectDB();

@@ -5,7 +5,7 @@ function getPlatformApiKey() {
     // Try to get encrypted platform API key first
     if (process.env.ENCRYPTED_PLATFORM_API_KEY) {
         try {
-            const {decrypt} = require('../src/utils/rsaCrypto');
+            const {decrypt} = require('../utils/rsaCrypto');
 
             if (process.env.ENCRYPTED_PLATFORM_API_KEY.startsWith('rsa:')) {
                 const encryptedData = process.env.ENCRYPTED_PLATFORM_API_KEY.substring(4);

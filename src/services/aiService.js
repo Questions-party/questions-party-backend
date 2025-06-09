@@ -1,5 +1,5 @@
 const axios = require('axios');
-const config = require('../../config/config');
+const config = require('../config/config');
 const User = require('../models/User');
 const HttpUtils = require('../utils/httpUtils');
 const i18n = require('../utils/i18n');

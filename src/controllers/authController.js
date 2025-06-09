@@ -1,6 +1,6 @@
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
-const config = require('../../config/config');
+const config = require('../config/config');
 const Joi = require('joi');
 const { getPublicKey } = require('../utils/rsaCrypto');
 
