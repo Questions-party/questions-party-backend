@@ -922,11 +922,6 @@ class AIService {
             throw new Error('Sentence must be 800 characters or less');
         }
 
-        // Basic validation for reasonable text (allow letters, numbers, punctuation, spaces)
-        if (!/^[a-zA-Z0-9\s.,!?;:\-'"()\[\]{}]+$/.test(sentence.trim())) {
-            throw new Error('Sentence contains invalid characters');
-        }
-
         return sentence.trim();
     }
 

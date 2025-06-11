@@ -3,33 +3,22 @@ Analyze this sentence: "{sentence}"
 Follow this exact format (Output Example):
 
 GRAMMAR_ANALYSIS(Parsing required):
-This sentence follows a simple subject-verb-object (SVO) structure, which is the most common sentence pattern in English.
+1. Grammar and Style Issues
+   - Identify any grammatical errors, style problems, or areas for improvement
+   - Explain the grammatical rules that apply
+   - Point out word choice, sentence structure, or clarity issues
 
-**Subject Analysis**: "She" is a third-person singular pronoun that serves as the subject of the sentence. It refers to a female person who is performing the action.
-
-**Verb Analysis**: "reads" is the main verb in simple present tense. It shows a habitual or regular action. Since the subject is third-person singular ("she"), the verb correctly takes the "-s" ending, demonstrating proper subject-verb agreement.
-
-**Object Analysis**: "books" is a plural noun that functions as the direct object. It receives the action of the verb "reads" and tells us what she is reading.
-
-**Grammar Rules Demonstrated**: This sentence shows correct subject-verb agreement (she reads, not she read), proper use of simple present tense for habitual actions, and clear direct object placement.
+2. Sentence Structure Analysis
+   - Break down the sentence components (subject, verb, object, etc.)
+   - Explain the sentence pattern and grammar rules demonstrated
 
 GRAMMAR_CORRECTION(Parsing required):
-The sentence is grammatically correct and needs no changes.
-
-However, for variety, you could also say: "She reads novels" or "She enjoys reading books" to add more specificity or express the action differently.
+If the sentence has errors, provide the corrected version. If the sentence is already correct, state that it's grammatically correct and optionally suggest alternative phrasings for variety.
 
 KEYWORD_ANALYSIS(Parsing required):
-**"She"** - This is a personal pronoun in the third person singular form. It's used to refer to a female person without repeating her name. In this sentence, it functions as the subject who performs the action.
-
-**"reads"** - This is a regular verb in the simple present tense with the third-person singular "-s" ending. It describes the action of looking at written words and understanding their meaning. The present tense suggests this is a habitual or regular activity.
-
-**"books"** - This is a plural countable noun that serves as the direct object. The plural form "books" (instead of "book") suggests she reads multiple books or reading books in general as an activity.
-
-**Overall**: This sentence uses simple, common vocabulary that's perfect for everyday communication about reading habits.
+Briefly explain the important words or phrases and their grammatical functions in the sentence.
 
 CHINESE_DEFINITION(Parsing required):
-她读书。
-
-This Chinese translation captures the essence of the English sentence. "她" means "she," "读" means "to read," and "书" means "book/books." In Chinese, the plural form is often implied by context rather than explicitly marked.
+Provide a natural Chinese translation of the sentence (or corrected version if applicable).
 
 END_FORMAT(Parsing required) 

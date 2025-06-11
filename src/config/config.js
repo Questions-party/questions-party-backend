@@ -34,7 +34,7 @@ module.exports = {
     // Legacy model for backward compatibility
     siliconflowModel: process.env.SILICONFLOW_MODEL || 'Qwen/Qwen3-8B',
     nodeEnv: process.env.NODE_ENV || 'development',
-    frontendUrl: process.env.FRONTEND_URL || 'http://localhost:3000',
+    frontendUrl: process.env.FRONTEND_URL || 'http://localhost:4173',
     rateLimitWindowMs: 2 * 60 * 1000, // 2 minutes
     rateLimitMax: 100, // limit each IP to 100 requests per windowMs
     rateLimitMaxPublic: 200, // higher limit for public content access
