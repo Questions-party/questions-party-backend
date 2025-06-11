@@ -34,7 +34,18 @@
     "serverErrorGettingPartsOfSpeech": "Server error getting parts of speech",
     "serverErrorExportingWords": "Server error exporting words",
     "noAvailableWords": "No random words available that you don't already have",
-    "serverErrorRandomWords": "Server error generating random words"
+    "serverErrorRandomWords": "Server error generating random words",
+
+    "noun": "Noun",
+    "verb": "Verb",
+    "adjective": "Adjective",
+    "adverb": "Adverb",
+    "preposition": "Preposition",
+    "conjunction": "Conjunction",
+    "interjection": "Interjection",
+    "pronoun": "Pronoun",
+    "determiner": "Determiner",
+    "adjectiveSatellite": "Adjective Satellite"
   },
   "generations": {
     "serverErrorGeneratingSentence": "Server error generating sentence",

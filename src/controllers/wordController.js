@@ -47,16 +47,25 @@ exports.getUserWords = async (req, res) => {
       .skip(skip)
       .limit(parseInt(limit));
 
+    // Add translated part of speech to each word
+    const wordsWithTranslation = words.map(word => {
+      const wordObj = word.toObject();
+      if (wordObj.primaryPartOfSpeech) {
+        wordObj.primaryPartOfSpeechTranslated = req.t(`words.${wordObj.primaryPartOfSpeech}`);
+      }
+      return wordObj;
+    });
+
     // Get total count for pagination
     const total = await Word.countDocuments(query);
 
     res.status(200).json({
       success: true,
-      words,
+      words: wordsWithTranslation,
       pagination: {
         current: parseInt(page),
         total: Math.ceil(total / limit),
-        hasNext: skip + words.length < total,
+        hasNext: skip + wordsWithTranslation.length < total,
         totalWords: total
       }
     });
@@ -116,9 +125,15 @@ exports.addWord = async (req, res) => {
       existingWord.userIds.push(req.user.id);
       await existingWord.save();
 
+      // Add translated part of speech
+      const wordObj = existingWord.toObject();
+      if (wordObj.primaryPartOfSpeech) {
+        wordObj.primaryPartOfSpeechTranslated = req.t(`words.${wordObj.primaryPartOfSpeech}`);
+      }
+
       res.status(201).json({
         success: true,
-        word: existingWord
+        word: wordObj
       });
     } else {
       // Create new word with WordNet data
@@ -131,9 +146,15 @@ exports.addWord = async (req, res) => {
         wordNetProcessed: wordProcessing.wordNetProcessed
       });
 
+      // Add translated part of speech
+      const wordObj = newWord.toObject();
+      if (wordObj.primaryPartOfSpeech) {
+        wordObj.primaryPartOfSpeechTranslated = req.t(`words.${wordObj.primaryPartOfSpeech}`);
+      }
+
       res.status(201).json({
         success: true,
-        word: newWord
+        word: wordObj
       });
     }
   } catch (error) {
@@ -189,9 +210,15 @@ exports.updateWord = async (req, res) => {
 
     await word.save();
 
+    // Add translated part of speech
+    const wordObj = word.toObject();
+    if (wordObj.primaryPartOfSpeech) {
+      wordObj.primaryPartOfSpeechTranslated = req.t(`words.${wordObj.primaryPartOfSpeech}`);
+    }
+
     res.status(200).json({
       success: true,
-      word
+      word: wordObj
     });
   } catch (error) {
     res.status(500).json({
@@ -288,11 +315,20 @@ exports.exportWords = async (req, res) => {
       .sort({ createdAt: -1 })
       .select('-userIds -__v');
 
+    // Add translated part of speech to each word
+    const wordsWithTranslation = words.map(word => {
+      const wordObj = word.toObject();
+      if (wordObj.primaryPartOfSpeech) {
+        wordObj.primaryPartOfSpeechTranslated = req.t(`words.${wordObj.primaryPartOfSpeech}`);
+      }
+      return wordObj;
+    });
+
     res.status(200).json({
       success: true,
-      words,
+      words: wordsWithTranslation,
       exportDate: new Date().toISOString(),
-      totalCount: words.length
+      totalCount: wordsWithTranslation.length
     });
   } catch (error) {
     res.status(500).json({
@@ -417,6 +453,7 @@ exports.getRandomWords = async (req, res) => {
       word: word.word,
       definition: word.primaryDefinition || '',
       partOfSpeech: word.primaryPartOfSpeech || '',
+      partOfSpeechTranslated: word.primaryPartOfSpeech ? req.t(`words.${word.primaryPartOfSpeech}`) : '',
       usageCount: word.usageCount || 0
     }));
 
@@ -446,9 +483,17 @@ exports.getPartsOfSpeech = async (req, res) => {
       primaryPartOfSpeech: { $ne: null }
     });
 
+    // Add translations for parts of speech
+    const partsOfSpeechWithTranslations = partsOfSpeech.sort().map(pos => ({
+      value: pos,
+      label: req.t(`words.${pos}`),
+      translation: req.t(`words.${pos}`)
+    }));
+
     res.status(200).json({
       success: true,
-      partsOfSpeech: partsOfSpeech.sort()
+      partsOfSpeech: partsOfSpeech.sort(),
+      partsOfSpeechWithTranslations
     });
   } catch (error) {
     res.status(500).json({

@@ -33,7 +33,7 @@ exports.checkSentence = async (req, res) => {
       });
     }
 
-    const { sentence, isPublic, maxRetries, grammarLanguage, enableThinking } = req.body;
+    const { sentence, isPublic, grammarLanguage, enableThinking } = req.body;
 
     // Get user's grammar explanation language preference (fallback to request body or default)
     const user = await User.findById(req.user.id).select('preferences.grammarExplanationLanguage');

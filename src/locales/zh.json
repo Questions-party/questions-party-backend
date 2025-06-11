@@ -34,7 +34,17 @@
     "serverErrorGettingPartsOfSpeech": "获取词性时出现服务器错误",
     "serverErrorExportingWords": "导出单词时出现服务器错误",
     "noAvailableWords": "没有您尚未拥有的随机单词可用",
-    "serverErrorRandomWords": "生成随机单词时出现服务器错误"
+    "serverErrorRandomWords": "生成随机单词时出现服务器错误",
+    "noun": "名词",
+    "verb": "动词",
+    "adjective": "形容词",
+    "adverb": "副词",
+    "preposition": "介词",
+    "conjunction": "连词",
+    "interjection": "感叹词",
+    "pronoun": "代词",
+    "determiner": "限定词",
+    "adjectiveSatellite": "形容词卫星词"
   },
   "generations": {
     "serverErrorGeneratingSentence": "生成句子时出现服务器错误",
