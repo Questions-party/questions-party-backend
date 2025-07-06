@@ -4,7 +4,8 @@ const { processWord } = require('../utils/wordUtils');
 
 // Validation schemas
 const addWordSchema = Joi.object({
-  word: Joi.string().min(1).max(50).pattern(/^[a-zA-Z\-']+$/).required()
+  word: Joi.string().min(1).max(50).pattern(/^[a-zA-Z\-']+$/).required(),
+  forceAdd: Joi.boolean().default(false)
 });
 
 // @desc    Get user's words
@@ -91,20 +92,35 @@ exports.addWord = async (req, res) => {
       });
     }
 
-    const { word } = req.body;
+    const { word, forceAdd } = req.body;
     const cleanWord = word.toLowerCase().trim();
 
-    // Process word (spell check and WordNet lookup)
-    const wordProcessing = await processWord(cleanWord);
+    let wordProcessing;
     
-    if (!wordProcessing.success) {
-      return res.status(400).json({
-        success: false,
-        message: req.t('words.spellingError'),
-        error: wordProcessing.error,
-        suggestions: wordProcessing.suggestions,
-        word: wordProcessing.word
-      });
+    if (forceAdd) {
+      // Skip spelling check and only get WordNet data
+      const wordNetData = await require('../utils/wordUtils').getWordNetData(cleanWord);
+      wordProcessing = {
+        success: true,
+        word: cleanWord,
+        ...wordNetData
+      };
+    } else {
+      // Process word (spell check and WordNet lookup)
+      wordProcessing = await processWord(cleanWord);
+      
+      if (!wordProcessing.success) {
+        // Return spelling suggestions with 200 status (not an error, just needs user confirmation)
+        return res.status(200).json({
+          success: false,
+          needsConfirmation: true,
+          spellingError: true,
+          message: req.t('words.spellingError'),
+          suggestions: wordProcessing.suggestions || [],
+          originalWord: wordProcessing.word,
+          suggestedCorrection: wordProcessing.suggestions && wordProcessing.suggestions.length > 0 ? wordProcessing.suggestions[0] : null
+        });
+      }
     }
 
     // Check if word already exists
@@ -168,62 +184,6 @@ exports.addWord = async (req, res) => {
     res.status(500).json({
       success: false,
       message: req.t('words.serverErrorAddingWord')
-    });
-  }
-};
-
-// @desc    Update word (only usage count can be updated by users)
-// @route   PUT /api/words/:id
-// @access  Private
-exports.updateWord = async (req, res) => {
-  try {
-    // Only allow updating usage count
-    const updateSchema = Joi.object({
-      usageCount: Joi.number().min(0)
-    });
-
-    const { error } = updateSchema.validate(req.body);
-    if (error) {
-      return res.status(400).json({
-        success: false,
-        message: error.details[0].message
-      });
-    }
-
-    // Find word where user is in userIds array
-    const word = await Word.findOne({
-      _id: req.params.id,
-      userIds: req.user.id
-    });
-
-    if (!word) {
-      return res.status(404).json({
-        success: false,
-        message: req.t('words.wordNotFound')
-      });
-    }
-
-    // Update word
-    if (req.body.usageCount !== undefined) {
-      word.usageCount = req.body.usageCount;
-    }
-
-    await word.save();
-
-    // Add translated part of speech
-    const wordObj = word.toObject();
-    if (wordObj.primaryPartOfSpeech) {
-      wordObj.primaryPartOfSpeechTranslated = req.t(`words.${wordObj.primaryPartOfSpeech}`);
-    }
-
-    res.status(200).json({
-      success: true,
-      word: wordObj
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: req.t('words.serverErrorUpdatingWord')
     });
   }
 };

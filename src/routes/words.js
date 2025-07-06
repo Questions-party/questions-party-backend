@@ -2,7 +2,6 @@ const express = require('express');
 const {
   getUserWords,
   addWord,
-  updateWord,
   deleteWord,
   getRandomWords,
   getWordStats,
@@ -36,11 +35,6 @@ router.get('/', auth, getUserWords);
 // @desc    Add new word
 // @access  Private
 router.post('/', auth, addWord);
-
-// @route   PUT /api/words/:id
-// @desc    Update word
-// @access  Private
-router.put('/:id', auth, updateWord);
 
 // @route   DELETE /api/words/:id
 // @desc    Delete word

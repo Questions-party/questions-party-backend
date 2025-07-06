@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const {formatDateToUTC8} = require("../utils/timeUtils");
-const { decrypt: rsaDecrypt } = require('../utils/rsaCrypto');
+const { decrypt } = require('../utils/rsaCrypto');
 
 const userSchema = new mongoose.Schema({
   username: {
@@ -145,7 +145,7 @@ userSchema.methods.decryptApiKey = function(encryptedKey = null) {
     // Check if it's RSA encrypted (base64 format from frontend)
     if (keyToDecrypt.startsWith('rsa:')) {
       const encryptedData = keyToDecrypt.substring(4);
-      return rsaDecrypt(encryptedData);
+      return decrypt(encryptedData);
     }
     
     // If not encrypted, return as-is (for development/testing)

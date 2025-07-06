@@ -20,17 +20,16 @@ const app = express();
 app.use(helmet({
     contentSecurityPolicy: {
         directives: {
-            defaultSrc: ["'self'"],
-            scriptSrc: ["'self'"]
+            defaultSrc: ["'self'"], scriptSrc: ["'self'"]
         }
     }
 }));
 
 // CORS configuration
 app.use(cors({
-    origin: config.frontendUrl,
-    credentials: true
+    origin: config.frontendUrl, credentials: true
 }));
+console.log('The supported cors origin is: ' + config.frontendUrl)
 
 // Logging middleware
 app.use(morgan('combined'));
@@ -90,9 +89,7 @@ app.get('/api/i18n', (req, res) => {
         locale: req.locale,
         supportedLocales: i18n.getSupportedLocales(),
         defaultLocale: i18n.defaultLocale,
-        detectedFromHeader: req.headers['accept-language'] ?
-            i18n.detectLocale(req.headers['accept-language']) :
-            i18n.defaultLocale
+        detectedFromHeader: req.headers['accept-language'] ? i18n.detectLocale(req.headers['accept-language']) : i18n.defaultLocale
     });
 });
 
@@ -104,8 +101,7 @@ app.get('/api/health', (req, res) => {
         timestamp: new Date().toISOString(),
         locale: req.locale,
         services: {
-            database: 'connected',
-            ai: 'SiliconFlow with Dynamic Model Selection available'
+            database: 'connected', ai: 'SiliconFlow with Dynamic Model Selection available'
         },
         dynamicModels: {
             light: config.siliconflowModelLight || 'Qwen/Qwen3-8B',
@@ -118,8 +114,7 @@ app.get('/api/health', (req, res) => {
                 lightThreshold: '1-16 words',
                 mediumThreshold: '17-33 words',
                 heavyThreshold: '34-50 words'
-            },
-            sentenceCheck: {
+            }, sentenceCheck: {
                 maxCharacters: 800,
                 lightThreshold: '1-266 characters',
                 mediumThreshold: '267-533 characters',
