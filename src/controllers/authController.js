@@ -531,8 +531,11 @@ exports.getPublicKey = async (req, res) => {
 // @route   POST /api/auth/forgot-password
 // @access  Public
 exports.sendResetCode = async (req, res) => {
+  let verificationCode = null;
+  let email = null;
+  
   try {
-    const { email } = req.body;
+    email = req.body.email;
     
     // Validate email
     if (!email) {
@@ -559,7 +562,7 @@ exports.sendResetCode = async (req, res) => {
     }
     
     // Generate 6-digit verification code
-    const verificationCode = generateVerificationCode();
+    verificationCode = generateVerificationCode();
     
     // Store code in Redis with 5-minute expiration
     await RedisKeyManager.storeVerificationCode(email, verificationCode);
@@ -574,6 +577,16 @@ exports.sendResetCode = async (req, res) => {
     });
   } catch (error) {
     console.error('Send reset code error:', error);
+    
+    // Clean up: remove verification code from Redis if it was stored
+    if (email && verificationCode) {
+      try {
+        await RedisKeyManager.removeVerificationCode(email);
+      } catch (cleanupError) {
+        console.error('Failed to cleanup verification code:', cleanupError);
+      }
+    }
+    
     res.status(500).json({
       success: false,
       message: req.t('auth.serverErrorSendingResetCode')
