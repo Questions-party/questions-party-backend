@@ -19,7 +19,24 @@
     "apiKeyValidationSuccessful": "API密钥验证成功",
     "apiKeyValidationFailed": "API密钥验证失败：{{error}}",
     "fontSettingsUpdatedSuccessfully": "字体设置更新成功",
-    "serverErrorUpdatingFontSettings": "更新字体设置时服务器错误"
+    "serverErrorUpdatingFontSettings": "更新字体设置时服务器错误",
+    "emailRequired": "邮箱地址为必填项",
+    "invalidEmailFormat": "邮箱格式无效",
+    "emailNotFound": "未找到此邮箱对应的账户",
+    "passwordResetCodeSent": "密码重置验证码已发送到您的邮箱",
+    "serverErrorSendingResetCode": "发送重置验证码时服务器错误",
+    "verificationCodeRequired": "验证码为必填项",
+    "invalidVerificationCode": "验证码格式无效",
+    "verificationCodeExpired": "验证码已过期",
+    "verificationCodeIncorrect": "验证码错误",
+    "verificationCodeVerified": "验证码验证成功",
+    "serverErrorVerifyingCode": "验证验证码时服务器错误",
+    "resetTokenRequired": "重置令牌为必填项",
+    "invalidResetToken": "重置令牌无效或已过期",
+    "newPasswordRequired": "新密码为必填项",
+    "passwordMinLength": "密码必须至少6个字符",
+    "passwordResetSuccessful": "密码重置成功",
+    "serverErrorResettingPassword": "重置密码时服务器错误"
   },
   "words": {
     "serverErrorFetchingWords": "获取单词时出现服务器错误",
@@ -92,5 +109,11 @@
   },
   "statistics": {
     "serverError": "获取统计数据时出现服务器错误"
+  },
+  "mail": {
+    "verificationSubject": "Questions Party - 邮箱验证",
+    "verificationBody": "您的验证码是：{{code}}\n\n请输入此验证码来验证您的邮箱地址。\n\n此验证码将在10分钟后过期。\n\n如果您没有请求此验证，请忽略此邮件。",
+    "passwordResetSubject": "Questions Party - 密码重置",
+    "passwordResetBody": "您的密码重置验证码是：{{code}}\n\n请输入此验证码来重置您的密码。\n\n此验证码将在5分钟后过期。\n\n如果您没有请求密码重置，请忽略此邮件。"
   }
 } 

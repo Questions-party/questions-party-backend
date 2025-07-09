@@ -14,6 +14,9 @@ const config = require('./src/config/config');
 // Connect to database
 connectDB();
 
+// Initialize Redis connection
+require('./src/config/redis');
+
 const app = express();
 
 // Security middleware

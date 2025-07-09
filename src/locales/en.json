@@ -19,7 +19,24 @@
     "apiKeyValidationSuccessful": "API key validation successful",
     "apiKeyValidationFailed": "API key validation failed: {{error}}",
     "fontSettingsUpdatedSuccessfully": "Font settings updated successfully",
-    "serverErrorUpdatingFontSettings": "Server error updating font settings"
+    "serverErrorUpdatingFontSettings": "Server error updating font settings",
+    "emailRequired": "Email is required",
+    "invalidEmailFormat": "Invalid email format",
+    "emailNotFound": "No account found with this email address",
+    "passwordResetCodeSent": "Password reset code sent to your email",
+    "serverErrorSendingResetCode": "Server error sending reset code",
+    "verificationCodeRequired": "Verification code is required",
+    "invalidVerificationCode": "Invalid verification code format",
+    "verificationCodeExpired": "Verification code has expired",
+    "verificationCodeIncorrect": "Verification code is incorrect",
+    "verificationCodeVerified": "Verification code verified successfully",
+    "serverErrorVerifyingCode": "Server error verifying code",
+    "resetTokenRequired": "Reset token is required",
+    "invalidResetToken": "Invalid or expired reset token",
+    "newPasswordRequired": "New password is required",
+    "passwordMinLength": "Password must be at least 6 characters",
+    "passwordResetSuccessful": "Password reset successful",
+    "serverErrorResettingPassword": "Server error resetting password"
   },
   "words": {
     "serverErrorFetchingWords": "Server error fetching words",
@@ -93,5 +110,11 @@
   },
   "statistics": {
     "serverError": "Server error getting statistics"
+  },
+  "mail": {
+    "verificationSubject": "Questions Party - Email Verification",
+    "verificationBody": "Your verification code is: {{code}}\n\nPlease enter this code to verify your email address.\n\nThis code will expire in 10 minutes.\n\nIf you didn't request this verification, please ignore this email.",
+    "passwordResetSubject": "Questions Party - Password Reset",
+    "passwordResetBody": "Your password reset code is: {{code}}\n\nPlease enter this code to reset your password.\n\nThis code will expire in 5 minutes.\n\nIf you didn't request a password reset, please ignore this email."
   }
 } 

@@ -3,6 +3,54 @@ const jwt = require('jsonwebtoken');
 const config = require('../config/config');
 const Joi = require('joi');
 const { getPublicKey } = require('../utils/rsaCrypto');
+const redisClient = require('../config/redis');
+const { validateEmail, mailUtils } = require('../utils/mailUtils');
+const { generateVerificationCode, generateResetToken } = require('../utils/randomUtils');
+
+// Redis key management methods
+const RedisKeyManager = {
+  // Password reset verification code keys
+  getPasswordResetCodeKey: (email) => `password_reset:${email}`,
+  
+  // Password reset token keys
+  getResetTokenKey: (email) => `reset_token:${email}`,
+  
+  // Store verification code with expiration
+  storeVerificationCode: async (email, code, expirationSeconds = 300) => {
+    const key = RedisKeyManager.getPasswordResetCodeKey(email);
+    return await redisClient.setEx(key, expirationSeconds, code);
+  },
+  
+  // Get verification code
+  getVerificationCode: async (email) => {
+    const key = RedisKeyManager.getPasswordResetCodeKey(email);
+    return await redisClient.get(key);
+  },
+  
+  // Remove verification code
+  removeVerificationCode: async (email) => {
+    const key = RedisKeyManager.getPasswordResetCodeKey(email);
+    return await redisClient.del(key);
+  },
+  
+  // Store reset token with expiration
+  storeResetToken: async (email, token, expirationSeconds = 1800) => {
+    const key = RedisKeyManager.getResetTokenKey(email);
+    return await redisClient.setEx(key, expirationSeconds, token);
+  },
+  
+  // Get reset token
+  getResetToken: async (email) => {
+    const key = RedisKeyManager.getResetTokenKey(email);
+    return await redisClient.get(key);
+  },
+  
+  // Remove reset token
+  removeResetToken: async (email) => {
+    const key = RedisKeyManager.getResetTokenKey(email);
+    return await redisClient.del(key);
+  }
+};
 
 // Validation schemas
 const registerSchema = Joi.object({
@@ -473,6 +521,207 @@ exports.getPublicKey = async (req, res) => {
     res.status(500).json({
       success: false,
       message: req.t('auth.serverError')
+    });
+  }
+};
+
+
+
+// @desc    Send password reset code
+// @route   POST /api/auth/forgot-password
+// @access  Public
+exports.sendResetCode = async (req, res) => {
+  try {
+    const { email } = req.body;
+    
+    // Validate email
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: req.t('auth.emailRequired')
+      });
+    }
+    
+    if (!validateEmail(email)) {
+      return res.status(400).json({
+        success: false,
+        message: req.t('auth.invalidEmailFormat')
+      });
+    }
+    
+    // Check if user exists
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: req.t('auth.emailNotFound')
+      });
+    }
+    
+    // Generate 6-digit verification code
+    const verificationCode = generateVerificationCode();
+    
+    // Store code in Redis with 5-minute expiration
+    await RedisKeyManager.storeVerificationCode(email, verificationCode);
+    
+    // Send email with verification code
+    const locale = req.headers['x-language'] || 'en';
+    await mailUtils.sendPasswordResetEmail(email, verificationCode, locale);
+    
+    res.status(200).json({
+      success: true,
+      message: req.t('auth.passwordResetCodeSent')
+    });
+  } catch (error) {
+    console.error('Send reset code error:', error);
+    res.status(500).json({
+      success: false,
+      message: req.t('auth.serverErrorSendingResetCode')
+    });
+  }
+};
+
+// @desc    Verify password reset code
+// @route   POST /api/auth/verify-reset-code
+// @access  Public
+exports.verifyResetCode = async (req, res) => {
+  try {
+    const { email, code } = req.body;
+    
+    // Validate inputs
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: req.t('auth.emailRequired')
+      });
+    }
+    
+    if (!code) {
+      return res.status(400).json({
+        success: false,
+        message: req.t('auth.verificationCodeRequired')
+      });
+    }
+    
+    // Validate code format (6 digits)
+    if (!/^\d{6}$/.test(code)) {
+      return res.status(400).json({
+        success: false,
+        message: req.t('auth.invalidVerificationCode')
+      });
+    }
+    
+    // Get code from Redis
+    const storedCode = await RedisKeyManager.getVerificationCode(email);
+    
+    if (!storedCode) {
+      return res.status(400).json({
+        success: false,
+        message: req.t('auth.verificationCodeExpired')
+      });
+    }
+    
+    if (storedCode !== code) {
+      return res.status(400).json({
+        success: false,
+        message: req.t('auth.verificationCodeIncorrect')
+      });
+    }
+    
+    // Generate one-time reset token
+    const resetToken = generateResetToken();
+    
+    // Store reset token in Redis with 30-minute expiration
+    await RedisKeyManager.storeResetToken(email, resetToken);
+    
+    // Remove verification code from Redis
+    await RedisKeyManager.removeVerificationCode(email);
+    
+    res.status(200).json({
+      success: true,
+      message: req.t('auth.verificationCodeVerified'),
+      resetToken
+    });
+  } catch (error) {
+    console.error('Verify reset code error:', error);
+    res.status(500).json({
+      success: false,
+      message: req.t('auth.serverErrorVerifyingCode')
+    });
+  }
+};
+
+// @desc    Reset password using reset token
+// @route   POST /api/auth/reset-password
+// @access  Public
+exports.resetPassword = async (req, res) => {
+  try {
+    const { email, resetToken, newPassword } = req.body;
+    
+    // Validate inputs
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: req.t('auth.emailRequired')
+      });
+    }
+    
+    if (!resetToken) {
+      return res.status(400).json({
+        success: false,
+        message: req.t('auth.resetTokenRequired')
+      });
+    }
+    
+    if (!newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: req.t('auth.newPasswordRequired')
+      });
+    }
+    
+    if (newPassword.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: req.t('auth.passwordMinLength')
+      });
+    }
+    
+    // Verify reset token
+    const storedToken = await RedisKeyManager.getResetToken(email);
+    
+    if (!storedToken || storedToken !== resetToken) {
+      return res.status(400).json({
+        success: false,
+        message: req.t('auth.invalidResetToken')
+      });
+    }
+    
+    // Find user and update password
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: req.t('auth.emailNotFound')
+      });
+    }
+    
+    // Update password
+    user.password = newPassword;
+    await user.save();
+    
+    // Remove reset token from Redis
+    await RedisKeyManager.removeResetToken(email);
+    
+    res.status(200).json({
+      success: true,
+      message: req.t('auth.passwordResetSuccessful')
+    });
+  } catch (error) {
+    console.error('Reset password error:', error);
+    res.status(500).json({
+      success: false,
+      message: req.t('auth.serverErrorResettingPassword')
     });
   }
 }; 

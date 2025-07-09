@@ -9,7 +9,10 @@ const {
   updateApiKey,
   testApiKey,
   getApiKeyStatus,
-  getPublicKey
+  getPublicKey,
+  sendResetCode,
+  verifyResetCode,
+  resetPassword
 } = require('../controllers/authController');
 const { auth } = require('../middleware/auth');
 const { authLimiter } = require('../middleware/rateLimiter');
@@ -65,5 +68,20 @@ router.get('/api-key-status', authLimiter, auth, getApiKeyStatus);
 // @desc    Get RSA public key for API key encryption
 // @access  Public (no rate limiting needed)
 router.get('/public-key', getPublicKey);
+
+// @route   POST /api/auth/forgot-password
+// @desc    Send password reset code
+// @access  Public (with rate limiting)
+router.post('/forgot-password', authLimiter, sendResetCode);
+
+// @route   POST /api/auth/verify-reset-code
+// @desc    Verify password reset code
+// @access  Public (with rate limiting)
+router.post('/verify-reset-code', authLimiter, verifyResetCode);
+
+// @route   POST /api/auth/reset-password
+// @desc    Reset password using reset token
+// @access  Public (with rate limiting)
+router.post('/reset-password', authLimiter, resetPassword);
 
 module.exports = router; 
