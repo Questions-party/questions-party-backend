@@ -39,12 +39,28 @@ module.exports = {
     rateLimitMax: 100, // limit each IP to 100 requests per windowMs
     rateLimitMaxPublic: 200, // higher limit for public content access
     aiRateLimitMax: 10, // limit AI requests to 10 per windowMs
-    authRateLimitMax: 20, // limit auth attempts to 5 per windowMs
+    authRateLimitMax: 20, // limit auth attempts to 20 per windowMs
     // Redis configuration
     redis: {
         host: process.env.REDIS_HOST || 'localhost',
         port: process.env.REDIS_PORT || 6379,
-        password: process.env.REDIS_PASSWORD
+        password: process.env.REDIS_PASSWORD,
+        // Build Redis URL
+        url: (() => {
+            const host = process.env.REDIS_HOST || 'localhost';
+            const port = process.env.REDIS_PORT || 6379;
+            const password = process.env.REDIS_PASSWORD;
+            
+            let redisUrl;
+            if (password) {
+                redisUrl = `redis://:${password}@${host}:${port}`;
+            } else {
+                redisUrl = `redis://${host}:${port}`;
+            }
+            
+            console.log('Redis connection URL:', redisUrl);
+            return redisUrl;
+        })()
     },
     aliyun: {
         accessKeyId: process.env.ALIBABA_CLOUD_ACCESS_KEY_ID,
